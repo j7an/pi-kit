@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/assert-package.mjs"],
+      "ignoreDependencies": ["@earendil-works/pi-coding-agent", "typebox"]
+    },
+    "packages/permissions": {
+      "entry": ["extensions/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "extensions/**/*.ts", "test/**/*.ts"]
+    }
+  }
+}
