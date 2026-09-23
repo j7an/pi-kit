@@ -37,8 +37,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Install pnpm from packageManager
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
 
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
@@ -85,8 +85,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Install pnpm from packageManager
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
 
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
