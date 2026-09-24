@@ -17,10 +17,13 @@ updates:
     commit-message:
       prefix: "deps"
 
-  # Root devDependencies: the whole toolchain. The package itself has no
+  # Root devDependencies, excluding Pi's fixed baseline. The package itself has no
   # runtime dependencies and pins both peers to `*`, so nothing else moves.
   - package-ecosystem: "npm"
     directory: "/"
+    ignore:
+      # Update Pi deliberately with the lockfile, CI matrix, pack gate, and docs.
+      - dependency-name: "@earendil-works/pi-coding-agent"
     rebase-strategy: "disabled"
     cooldown:
       default-days: 5
