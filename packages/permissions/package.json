@@ -9,7 +9,11 @@
     "pi-extension",
     "pi",
     "pi-coding-agent",
-    "permissions"
+    "permissions",
+    "guardrails",
+    "tool-permissions",
+    "command-approval",
+    "policy"
   ],
   "pi": {
     "extensions": [
