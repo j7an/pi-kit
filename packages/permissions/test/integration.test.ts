@@ -276,12 +276,65 @@ test("session_start raises a persistent banner naming the broken file", async ()
   assert.ok(String(texts[0]).includes(GLOBAL));
 });
 
-test("session_start clears a stale banner when config loads cleanly", async () => {
-  const pi = build();
-  const ctx = stubCtx();
+test("session_start clears forced ask and its banner after the config is repaired", async () => {
+  const files = { [GLOBAL]: "{ broken" };
+  const pi = build(files);
+  const ctx = stubCtx({ hasUI: false });
   await pi.fire("session_start", { type: "session_start" }, ctx);
-  assert.deepEqual(statusTexts(ctx.ui), [undefined]);
+  assert.match(String(statusTexts(ctx.ui)[0]), /forced to ask/);
+  const blocked = (await pi.fire(
+    "tool_call",
+    call("bash", { command: "echo ready" }),
+    ctx,
+  )) as Block;
+  assert.equal(blocked.block, true);
+  files[GLOBAL] = "{}";
+  await pi.fire("session_start", { type: "session_start" }, ctx);
+  assert.equal(statusTexts(ctx.ui).length, 2);
+  assert.equal(statusTexts(ctx.ui)[1], undefined);
+  assert.equal(await pi.fire("tool_call", call("bash", { command: "echo ready" }), ctx), undefined);
 });
+
+test("the old flat project config cannot disable protection when Pi implicitly trusts the folder", async () => {
+  const pi = build({
+    "/repo/.pi/pi-kit-permissions.json": JSON.stringify({
+      headlessAsk: "allow",
+      outsideCwd: "allow",
+      paths: { appliesTo: [] },
+    }),
+  });
+  const ctx = stubCtx({ hasUI: false, isProjectTrusted: () => true });
+  for (const path of [".env", "/etc/hosts"]) {
+    const result = (await pi.fire("tool_call", call("write", { path }), ctx)) as Block;
+    assert.equal(result?.block, true);
+  }
+});
+
+for (const [label, config, tool, input, expected] of [
+  [
+    "ask rule",
+    { bash: { ask: ["git push*"] } },
+    "bash",
+    { command: "git push" },
+    /bash rule "git push\*" \(ask\)/,
+  ],
+  [
+    "default ask",
+    { defaultMode: "ask" },
+    "bash",
+    { command: "echo ready" },
+    /defaultMode is "ask"/,
+  ],
+  ["outside cwd ask", { outsideCwd: "ask" }, "write", { path: "/etc/hosts" }, /outsideCwd: ask/],
+] as const) {
+  test(`refusing approval preserves the ${label} attribution`, async () => {
+    const pi = build({ [GLOBAL]: JSON.stringify(config) });
+    const result = (await pi.fire("tool_call", call(tool, input), stubCtx())) as Block;
+    assert.equal(result.block, true);
+    assert.match(result.reason, expected);
+    assert.match(result.reason, /Approval was not granted/);
+  });
+}
 
 test("session_start warns when project config is untrusted without forcing ask", async () => {
   const pi = build({ [PROJECT]: JSON.stringify({ defaultMode: "deny" }) });

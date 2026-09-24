@@ -115,10 +115,10 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
 
       return {
         block: true,
-        reason: blockReason({ ...decision, outcome: "deny" }, request, {
+        reason: `${blockReason(decision, request, {
           headless: false,
           forcedAskProblem,
-        }),
+        })} Approval was not granted.`,
       };
     } catch (error) {
       return { block: true, reason: gateErrorReason(error) };

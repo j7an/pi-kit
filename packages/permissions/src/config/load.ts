@@ -9,9 +9,9 @@ export function globalConfigPath(agentDir: string): string {
   return join(agentDir, "extensions", CONFIG_FILE);
 }
 
-/** `configDirName` is Pi's `CONFIG_DIR_NAME`; never hardcode `.pi`. */
+/** The extensions directory makes Pi require trust even when this is its only file. */
 export function projectConfigPath(cwd: string, configDirName: string): string {
-  return join(cwd, configDirName, CONFIG_FILE);
+  return join(cwd, configDirName, "extensions", CONFIG_FILE);
 }
 
 export type LoadResult = {

@@ -58,6 +58,45 @@ test("specificity does not change order: a broad deny beats a narrow allow", () 
 
 // --- compound commands ---------------------------------------------------
 
+for (const command of ["# it's stale\nrm -rf dist", "npm test # don't cache\ngit push --force"]) {
+  test(`comments cannot hide a denied command: ${JSON.stringify(command)}`, () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+
+for (const mode of ["deny", "ask"] as const) {
+  test(`segment attribution survives a matching ${mode} default`, () => {
+    assert.deepEqual(
+      decide(
+        { ...base, defaultMode: mode, bash: { [mode]: ["rm -rf *"] } },
+        bash("cd build && rm -rf ."),
+        CWD,
+      ),
+      {
+        outcome: mode,
+        dimension: "bash",
+        pattern: "rm -rf *",
+        segment: "rm -rf .",
+      },
+    );
+  });
+}
+
+test("an equally restrictive whole-request rule keeps attribution", () => {
+  assert.deepEqual(
+    decide(
+      { ...base, tools: { deny: ["bash"] }, bash: { deny: ["rm -rf *"] } },
+      bash("cd build && rm -rf ."),
+      CWD,
+    ),
+    {
+      outcome: "deny",
+      dimension: "tools",
+      pattern: "bash",
+    },
+  );
+});
+
 test("a deny pattern catches a later segment of a compound command", () => {
   const config: Config = { ...base, bash: { deny: ["rm -rf *"] } };
   const decision = decide(config, bash("cd build && rm -rf ."), CWD);

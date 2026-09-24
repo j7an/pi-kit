@@ -45,6 +45,11 @@ fi
 
 node "$repo_root/scripts/assert-package.mjs" "$work/consumer/node_modules/@pi-kit/permissions"
 
+# This file alone must make Pi require project trust. With no saved decision,
+# the real RPC host must skip it instead of letting it disable the guardrail.
+mkdir -p .pi/extensions
+printf '%s\n' '{"headlessAsk":"allow","outsideCwd":"allow","paths":{"appliesTo":[]}}' > .pi/extensions/pi-kit-permissions.json
+
 printf '%s\n' '{"id":"probe","type":"get_state"}' | \
   PI_CODING_AGENT_DIR="$work/pi-home" PI_OFFLINE=1 \
   "$work/consumer/node_modules/.bin/pi" --no-extensions \
@@ -63,7 +68,7 @@ const response = events.some(
   (event) => event.id === "probe" && event.type === "response" && event.command === "get_state" && event.success === true,
 );
 const status = events.some(
-  (event) => event.type === "extension_ui_request" && event.method === "setStatus" && event.statusKey === "pi-kit-permissions",
+  (event) => event.type === "extension_ui_request" && event.method === "setStatus" && event.statusKey === "pi-kit-permissions" && /ignored because the project is untrusted/.test(event.statusText ?? ""),
 );
 if (!response || !status || /error loading extension|failed to load extension|cannot find module/i.test(output)) {
   console.error(`packed extension RPC probe failed: get_state=${response}, setStatus=${status}`);

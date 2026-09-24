@@ -41,10 +41,10 @@ test("paths: global config is a flat file under <agentDir>/extensions", () => {
   assert.equal(GLOBAL, "/home/u/.pi/agent/extensions/pi-kit-permissions.json");
 });
 
-test("paths: project config is a flat file under <cwd>/<configDirName>", () => {
-  assert.equal(PROJECT, "/repo/.pi/pi-kit-permissions.json");
+test("paths: project config lives under Pi's trust-protected extensions directory", () => {
+  assert.equal(PROJECT, "/repo/.pi/extensions/pi-kit-permissions.json");
   // A rebranded Pi changes the directory name; nothing here hardcodes `.pi`.
-  assert.equal(projectConfigPath(CWD, ".tau"), "/repo/.tau/pi-kit-permissions.json");
+  assert.equal(projectConfigPath(CWD, ".tau"), "/repo/.tau/extensions/pi-kit-permissions.json");
 });
 
 // --- mergeConfig -----------------------------------------------------------

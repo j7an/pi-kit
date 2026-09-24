@@ -123,7 +123,11 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
       : matches.reduce((acc, next) => (RANK[next.outcome] > RANK[acc.outcome] ? next : acc), first);
   const baseline = wholeWinner?.outcome ?? config.defaultMode ?? DEFAULT_CONFIG.defaultMode;
   const worst =
-    segmentMatch && RANK[segmentMatch.outcome] > RANK[baseline] ? segmentMatch : wholeWinner;
+    segmentMatch &&
+    (RANK[segmentMatch.outcome] > RANK[baseline] ||
+      (wholeWinner === undefined && segmentMatch.outcome === baseline))
+      ? segmentMatch
+      : wholeWinner;
   if (worst === undefined) return { outcome: baseline };
   const decision: Decision = {
     outcome: worst.outcome,

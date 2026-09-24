@@ -84,10 +84,10 @@ test("blockReason: attributes a default-mode block to defaultMode", () => {
 test("blockReason: names the broken config when defaultMode was forced to ask", () => {
   const reason = blockReason({ outcome: "ask" }, bash("ls"), {
     headless: true,
-    forcedAskProblem: "/repo/.pi/pi-kit-permissions.json: invalid JSON",
+    forcedAskProblem: "/repo/.pi/extensions/pi-kit-permissions.json: invalid JSON",
   });
   assert.match(reason, /defaultMode forced to ask/);
-  assert.match(reason, /\/repo\/\.pi\/pi-kit-permissions\.json: invalid JSON/);
+  assert.match(reason, /\/repo\/\.pi\/extensions\/pi-kit-permissions\.json: invalid JSON/);
 });
 
 test("gateErrorReason: is distinguishable from a policy decision", () => {
