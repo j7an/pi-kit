@@ -1,0 +1,49 @@
+{
+  "name": "@pi-kit/permissions",
+  "version": "0.1.0",
+  "description": "Allow/ask/deny guardrail extension for the Pi coding agent. Zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "permissions",
+    "guardrails",
+    "tool-permissions",
+    "command-approval",
+    "policy"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/j7an/pi-kit.git",
+    "directory": "packages/permissions"
+  },
+  "homepage": "https://github.com/j7an/pi-kit/tree/main/packages/permissions#readme",
+  "bugs": {
+    "url": "https://github.com/j7an/pi-kit/issues"
+  }
+}

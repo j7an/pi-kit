@@ -1,0 +1,26 @@
+name: Publish @pi-kit/permissions
+
+on:
+  push:
+    tags:
+      - "permissions/v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    permissions:
+      contents: write # GitHub Release, created by the reusable workflow
+      id-token: write # npm trusted publishing; needed on the caller too
+    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@922a5c02377c33cfb1298fa46f498e71dfad4a70 # v4.8.0
+    with:
+      tag: ${{ github.ref_name }}
+      package-name: "@pi-kit/permissions"
+      package-dir: packages/permissions
+      # Runs from the repository root: workspace install plus the whole gate.
+      test-command: corepack enable && pnpm install --frozen-lockfile && pnpm check
+      # pnpm pack seals workspace:/catalog: specifiers before publication.
+      pack-command: pnpm pack --json
+      # Post-pack, pre-upload gate against the exact bytes being published.
+      pack-contents-script: scripts/assert-pack.sh

@@ -1,0 +1,18 @@
+name: Dependency Safety Non-Bot Gate
+
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] status-only path; never checks out or runs PR code
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: dep-safety-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    permissions:
+      statuses: write
+    uses: j7an/shared-workflows/.github/workflows/dependency-safety-non-bot-gate.yml@922a5c02377c33cfb1298fa46f498e71dfad4a70 # v4.8.0

@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # GitHub Actions (SHA-pinned, updated by Dependabot)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    rebase-strategy: "disabled"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "18:00"
+      timezone: "America/Los_Angeles"
+    groups:
+      all-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
+
+  # Root devDependencies, excluding Pi's fixed baseline. The package itself has no
+  # runtime dependencies and pins both peers to `*`, so nothing else moves.
+  - package-ecosystem: "npm"
+    directory: "/"
+    ignore:
+      # Update Pi deliberately with the lockfile, CI matrix, pack gate, and docs.
+      - dependency-name: "@earendil-works/pi-coding-agent"
+    rebase-strategy: "disabled"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "18:00"
+      timezone: "America/Los_Angeles"
+    groups:
+      dev-toolchain:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"

@@ -1,0 +1,19 @@
+packages:
+  - "packages/*"
+
+# pnpm 12 hard-errors (ERR_PNPM_IGNORED_BUILDS) when a transitive dependency
+# has an unapproved build script, so a bare `pnpm install` exits 1 without
+# this block. All three are DENIED: nothing in this workspace needs a
+# postinstall, and a permission guardrail should not be running third-party
+# install scripts it does not need. All three arrive only through the Pi
+# devDependency, which exists solely so `tsc` can resolve
+# `import type { ExtensionAPI }`:
+#   esbuild        ← @earendil-works/chord ← pi-coding-agent  (verified: pnpm why esbuild)
+#   @google/genai  ← pi-ai ← pi-agent-core ← pi-coding-agent
+#   protobufjs     ← @google/genai
+# Regenerate with:
+#   pnpm approve-builds '!esbuild' '!@google/genai' '!protobufjs' --yes
+allowBuilds:
+  '@google/genai': false
+  esbuild: false
+  protobufjs: false
