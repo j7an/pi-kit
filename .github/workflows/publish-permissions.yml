@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write # GitHub Release, created by the reusable workflow
       id-token: write # npm trusted publishing; needed on the caller too
-    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@922a5c02377c33cfb1298fa46f498e71dfad4a70 # v4.8.0
+    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@798e12564a8aeacc4dda95f76d8d3d22d677f1a0 # v4.9.0
     with:
       tag: ${{ github.ref_name }}
       package-name: "@pi-kit/permissions"
