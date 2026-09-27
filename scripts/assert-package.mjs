@@ -42,6 +42,11 @@ check(
   pkg.peerDependencies?.["@earendil-works/pi-coding-agent"] === "*",
 );
 check("typebox peer range is *", pkg.peerDependencies?.typebox === "*");
+// Pi supplies both and never installs peers for extensions; optional stops
+// plain npm installs from pulling the Pi host tree.
+for (const name of ["@earendil-works/pi-coding-agent", "typebox"]) {
+  check(`${name} peer is optional`, pkg.peerDependenciesMeta?.[name]?.optional === true);
+}
 
 const extensions = pkg.pi?.extensions;
 check("pi.extensions is declared", Array.isArray(extensions) && extensions.length > 0);
