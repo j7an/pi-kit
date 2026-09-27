@@ -12,6 +12,14 @@ pi install npm:@pi-kit/permissions
 
 Restart Pi. With no configuration, the defaults below apply.
 
+## Dependencies
+
+None at runtime. `@earendil-works/pi-coding-agent` and `typebox` are optional
+peer dependencies that Pi supplies to every extension; Pi never installs them
+from this package. Supply-chain scanners that walk peer dependencies report
+alerts belonging to the Pi host, which is present whether or not this
+extension is installed.
+
 ## What it does
 
 Before every tool call, the extension resolves the call to one of three
