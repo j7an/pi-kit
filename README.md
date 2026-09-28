@@ -30,8 +30,9 @@ pnpm test         # node --test
 pnpm format       # biome
 ```
 
-Node 22.19 or newer; CI tests 22.19.0 and 24. Pi 0.85.1 is the pinned
-qualification version.
+Node 22.19 or newer; CI tests 22.19.0 and 24. Pull requests test the Pi
+version pinned in the root `package.json`; a weekly job tests the newest patch
+of each Pi minor released or superseded in the last 30 days.
 
 ## Licence
 

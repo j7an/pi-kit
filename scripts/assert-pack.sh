@@ -3,7 +3,8 @@
 # Called from the repository root with the path to pack.json.
 set -eu
 
-PI_VERSION=${PI_VERSION:-0.85.1}
+# The pin lives once, in the root package.json; CI's weekly window overrides it.
+PI_VERSION=${PI_VERSION:-$(node -p 'require("./package.json").devDependencies["@earendil-works/pi-coding-agent"]')}
 repo_root=$(pwd)
 metadata=$1
 
@@ -50,12 +51,58 @@ node "$repo_root/scripts/assert-package.mjs" "$work/consumer/node_modules/@pi-ki
 mkdir -p .pi/extensions
 printf '%s\n' '{"headlessAsk":"allow","outsideCwd":"allow","paths":{"appliesTo":[]}}' > .pi/extensions/pi-kit-permissions.json
 
-printf '%s\n' '{"id":"probe","type":"get_state"}' | \
+# A scripted model (pi-ai's faux provider, installed with Pi) asks for one bash
+# call the default config denies, so the probe drives Pi's real tool_call path.
+mkdir dist
+cat > probe.mjs <<'NODE'
+import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
+
+export default function (pi) {
+  const faux = createFauxCore({ provider: "probe", models: [{ id: "probe" }] });
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall("bash", { command: "rm -rf dist" }), { stopReason: "toolUse" }),
+    fauxAssistantMessage("done"),
+  ]);
+  pi.registerProvider("probe", {
+    baseUrl: "http://127.0.0.1:9",
+    apiKey: "probe",
+    api: faux.api,
+    streamSimple: faux.streamSimple,
+    models: [
+      {
+        id: "probe",
+        name: "probe",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 8192,
+        maxTokens: 1024,
+      },
+    ],
+  });
+}
+NODE
+
+# Pi shuts down on stdin EOF without waiting for the agent, so hold stdin open
+# until the run ends, or 60 seconds pass.
+# shellcheck disable=SC2094 # Intentional: poll Pi's output while stdin stays open.
+{
+  printf '%s\n' \
+    '{"id":"probe","type":"get_state"}' \
+    '{"id":"model","type":"set_model","provider":"probe","modelId":"probe"}' \
+    '{"id":"prompt","type":"prompt","message":"probe"}'
+  i=0
+  while [ "$i" -lt 60 ] && ! grep -qs '"type":"agent_end"' "$work/pi-out.txt"; do
+    sleep 1
+    i=$((i + 1))
+  done
+} | \
   PI_CODING_AGENT_DIR="$work/pi-home" PI_OFFLINE=1 \
   "$work/consumer/node_modules/.bin/pi" --no-extensions \
     -e ./node_modules/@pi-kit/permissions \
+    -e ./probe.mjs \
     --offline --no-session --mode rpc > "$work/pi-out.txt" 2>&1 || {
-      echo "pi exited non-zero while loading the packed extension" >&2
+      echo "pi exited non-zero while running the packed extension probe" >&2
       cat "$work/pi-out.txt" >&2
       exit 1
     }
@@ -70,8 +117,17 @@ const response = events.some(
 const status = events.some(
   (event) => event.type === "extension_ui_request" && event.method === "setStatus" && event.statusKey === "pi-kit-permissions" && /ignored because the project is untrusted/.test(event.statusText ?? ""),
 );
-if (!response || !status || /error loading extension|failed to load extension|cannot find module/i.test(output)) {
-  console.error(`packed extension RPC probe failed: get_state=${response}, setStatus=${status}`);
+const blocked = events.some(
+  (event) =>
+    event.type === "tool_execution_end" &&
+    event.toolName === "bash" &&
+    event.isError === true &&
+    (event.result?.content ?? []).some((part) => /^Blocked by pi-kit permissions:/.test(part.text ?? "")),
+);
+// Pi exits 0 when stdin closes at the timeout, so a run that never ended must fail here.
+const ended = events.some((event) => event.type === "agent_end");
+if (!response || !status || !blocked || !ended || /error loading extension|failed to load extension|cannot find module/i.test(output)) {
+  console.error(`packed extension RPC probe failed: get_state=${response}, setStatus=${status}, blocked=${blocked}, ended=${ended}`);
   process.exit(1);
 }
 NODE
@@ -80,4 +136,9 @@ then
   exit 1
 fi
 
-echo "packed artifact installs and loads under pi ${PI_VERSION}"
+if [ ! -d dist ]; then
+  echo "the probe's rm -rf dist ran; the guard did not block it" >&2
+  exit 1
+fi
+
+echo "packed artifact installs, loads and blocks under pi ${PI_VERSION}"

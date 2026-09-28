@@ -208,8 +208,8 @@ in an allow pattern also matches chained commands: `ls*` allows
 
 ## Supported versions
 
-Pi 0.85.1 (pinned in CI; a non-blocking job tracks `latest`). Node 22.19 or
-newer, tested on 22.19.0 and 24.
+Tested weekly against the newest patch of each Pi minor released or superseded
+in the last 30 days. Node 22.19 or newer, tested on 22.19.0 and 24.
 
 ## Licence
 

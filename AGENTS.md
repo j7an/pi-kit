@@ -32,8 +32,9 @@ Run from the repository root.
 - Commits follow Conventional Commits (`feat(permissions): …`, `fix(ci): …`).
   Tag-release infers the version bump from them.
 - Pin GitHub Actions to a full commit SHA with a `# vX.Y.Z` comment.
-- The Pi version is pinned deliberately and Dependabot ignores it. Change it
-  only on purpose, everywhere it appears (`git grep` the old version).
+- The Pi version is pinned deliberately in the root `package.json` and
+  Dependabot ignores it. Change it only on purpose, there, and refresh the
+  lockfile with `pnpm install`.
 
 ## Adding a package
 
