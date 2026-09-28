@@ -22,7 +22,7 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     ignore:
-      # Update Pi deliberately with the lockfile, CI matrix, pack gate, and docs.
+      # Update Pi deliberately in package.json and the lockfile.
       - dependency-name: "@earendil-works/pi-coding-agent"
     rebase-strategy: "disabled"
     cooldown:
