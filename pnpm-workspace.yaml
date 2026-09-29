@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
 
+# Resolve packages' `*` peers (Pi, typebox) from the root devDependencies rather
+# than locking a second copy per package that never moves when the root is bumped.
+autoInstallPeers: false
+
 # pnpm 12 hard-errors (ERR_PNPM_IGNORED_BUILDS) when a transitive dependency
 # has an unapproved build script, so a bare `pnpm install` exits 1 without
 # this block. All three are DENIED: nothing in this workspace needs a

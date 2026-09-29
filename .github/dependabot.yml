@@ -17,13 +17,12 @@ updates:
     commit-message:
       prefix: "deps"
 
-  # Root devDependencies, excluding Pi's fixed baseline. The package itself has no
-  # runtime dependencies and pins both peers to `*`, so nothing else moves.
+  # Root devDependencies. The package itself has no runtime dependencies and pins
+  # both peers to `*`, so nothing else moves. Pi gets its own PR so a breaking Pi
+  # release cannot hold back the toolchain group; the weekly pi-window CI job
+  # covers the older Pi minors this pin moves past.
   - package-ecosystem: "npm"
     directory: "/"
-    ignore:
-      # Update Pi deliberately in package.json and the lockfile.
-      - dependency-name: "@earendil-works/pi-coding-agent"
     rebase-strategy: "disabled"
     cooldown:
       default-days: 5
@@ -35,5 +34,6 @@ updates:
     groups:
       dev-toolchain:
         patterns: ["*"]
+        exclude-patterns: ["@earendil-works/pi-coding-agent"]
     commit-message:
       prefix: "deps"
