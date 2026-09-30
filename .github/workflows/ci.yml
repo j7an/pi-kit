@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-  # Weekly run against the Pi version window (scripts/pi-window.mjs).
+  # Weekly run against the Pi version window (shared-workflows release-window action).
   schedule:
     - cron: "15 6 * * 1"
   workflow_dispatch:
@@ -116,19 +116,12 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-
       - name: Compute the Pi version window
         id: window
-        run: node scripts/pi-window.mjs >> "$GITHUB_OUTPUT"
+        uses: j7an/shared-workflows/actions/release-window@f6fedd5f4a9e33ff83c893abcc608e402c1ee1b0 # v4.10.0
+        with:
+          npm-package: "@earendil-works/pi-coding-agent"
+          window-days: "30"
 
   pi-compat:
     name: pi compat (pi ${{ matrix.pi }})
