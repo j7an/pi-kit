@@ -46,6 +46,9 @@ export type RuleSet = Static<typeof RuleSetSchema>;
 export type PathRuleSet = Static<typeof PathRuleSetSchema>;
 export type Config = Static<typeof ConfigSchema>;
 
+/** Strictness order: deny > ask > allow. */
+export const RANK: Record<Mode, number> = { allow: 0, ask: 1, deny: 2 };
+
 type ValidationResult = { ok: true; config: Config } | { ok: false; errors: string[] };
 
 /**

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import {
@@ -7,6 +9,7 @@ import {
   mergeConfig,
   projectConfigPath,
 } from "../src/config/load.ts";
+import { decide } from "../src/decide.ts";
 
 const AGENT_DIR = "/home/u/.pi/agent";
 const CONFIG_DIR = ".pi";
@@ -80,6 +83,26 @@ test("mergeConfig: appliesTo overwrites rather than unions", () => {
   assert.deepEqual(merged.paths?.appliesTo, ["read"]);
 });
 
+test("mergeConfig: a project scope can tighten scalars but never loosen them", () => {
+  const merged = mergeConfig(
+    { defaultMode: "ask", headlessAsk: "deny", outsideCwd: "allow" },
+    { defaultMode: "allow", headlessAsk: "allow", outsideCwd: "deny" },
+    true,
+  );
+  assert.equal(merged.defaultMode, "ask");
+  assert.equal(merged.headlessAsk, "deny");
+  assert.equal(merged.outsideCwd, "deny");
+});
+
+test("mergeConfig: a project scope unions appliesTo", () => {
+  const merged = mergeConfig(
+    { paths: { appliesTo: ["write", "edit"] } },
+    { paths: { appliesTo: ["read"] } },
+    true,
+  );
+  assert.deepEqual(merged.paths?.appliesTo, ["write", "edit", "read"]);
+});
+
 test("mergeConfig: keys the patch omits are inherited untouched", () => {
   const merged = mergeConfig(
     { bash: { deny: ["a"] }, tools: { ask: ["*"] } },
@@ -108,12 +131,42 @@ test("loadConfig: a global scope adds to the default deny list", () => {
 test("loadConfig: default → global → project, in that order", () => {
   const result = load({
     files: {
-      [GLOBAL]: JSON.stringify({ bash: { deny: ["g"] }, defaultMode: "deny" }),
-      [PROJECT]: JSON.stringify({ bash: { deny: ["p"] }, defaultMode: "ask" }),
+      [GLOBAL]: JSON.stringify({ bash: { deny: ["g"] }, defaultMode: "ask" }),
+      [PROJECT]: JSON.stringify({ bash: { deny: ["p"] }, defaultMode: "deny" }),
     },
   });
   assert.deepEqual(result.config.bash?.deny, [...DEFAULT_CONFIG.bash.deny, "g", "p"]);
+  assert.equal(result.config.defaultMode, "deny");
+});
+
+test("loadConfig: a project cannot loosen inherited settings or ungate path rules", () => {
+  const result = load({
+    files: {
+      [GLOBAL]: JSON.stringify({
+        defaultMode: "ask",
+        paths: { appliesTo: ["read", "write", "edit"], deny: ["~/.ssh/**"] },
+      }),
+      [PROJECT]: JSON.stringify({
+        defaultMode: "allow",
+        headlessAsk: "allow",
+        outsideCwd: "allow",
+        paths: { appliesTo: [] },
+      }),
+    },
+  });
+  const outcome = (tool: string, raw: string, resolved: string) =>
+    decide(result.config, { tool, paths: [resolved], rawPaths: [raw] }, CWD).outcome;
+
+  assert.equal(outcome("read", "~/.ssh/id_ed25519", join(homedir(), ".ssh/id_ed25519")), "deny");
+  assert.equal(outcome("write", ".env", `${CWD}/.env`), "deny");
+  assert.equal(outcome("write", "/etc/hosts", "/etc/hosts"), "ask");
   assert.equal(result.config.defaultMode, "ask");
+  assert.equal(result.config.headlessAsk, "deny");
+  assert.equal(result.forcedAsk, false);
+  const report = result.problems.join("\n");
+  for (const key of ["defaultMode", "headlessAsk", "outsideCwd"]) {
+    assert.match(report, new RegExp(`${key} "allow" ignored`));
+  }
 });
 
 test("loadConfig: a project cannot remove a global deny", () => {

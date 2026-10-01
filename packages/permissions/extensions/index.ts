@@ -41,7 +41,7 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
       STATUS_KEY,
       result.forcedAsk
         ? `pi-kit permissions: defaultMode forced to ask until fixed — ${result.problems[0]}`
-        : `pi-kit permissions: a config scope was skipped — ${result.problems[0]}`,
+        : `pi-kit permissions: part of the config was ignored — ${result.problems[0]}`,
     );
   }
 

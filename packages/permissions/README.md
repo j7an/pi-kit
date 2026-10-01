@@ -80,9 +80,13 @@ Under the defaults, `read /etc/hosts` is allowed (`read` is not in
 
 Defaults, then global, then the trusted project file.
 
-- **Rule lists add up.** A project can add rules but never remove inherited ones.
-- **Scalars overwrite.** `defaultMode`, `headlessAsk`, `outsideCwd`, and
-  `paths.appliesTo` take the last scope that sets them.
+- **Rule lists add up.** No scope can remove an inherited rule.
+- **The global file overwrites scalars.** `defaultMode`, `headlessAsk`,
+  `outsideCwd`, and `paths.appliesTo` take the global value when it sets them.
+- **A project can only tighten.** Its scalars apply only when stricter than
+  the inherited value (`deny` > `ask` > `allow`), and its `paths.appliesTo`
+  adds tools rather than replacing the list. A looser value is ignored and
+  named in the footer banner. Its `allow` rules still apply.
 - To relax a global rule, edit the global file.
 
 A file that fails to parse or validate contributes no rules, is named in a
