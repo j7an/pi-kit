@@ -13,6 +13,8 @@ Run from the repository root.
 - `pnpm check` — typecheck, lint, knip, test; must pass before every commit
 - `pnpm format` — apply Biome formatting and import order
 - `node --test packages/<name>/test/<file>.test.ts` — run one test file
+- `pnpm test --experimental-test-coverage` — show coverage; the CI `coverage`
+  job gates PRs at 90% total and 90% changed lines
 
 ## Rules
 
@@ -47,6 +49,10 @@ Releases are per package. A new `packages/<name>/` also needs:
   the bump
 - a `publish-<name>.yml` caller modelled on `publish-permissions.yml`
 - a `knip.json` workspace entry and a row in the root README package table
+- runtime code under `src/` or `extensions/`, the only paths the `ci.yml`
+  coverage job's `source-paths` globs gate; another layout must add its paths
+  there, or its changes go ungated. A type-only module has no LCOV record, so
+  it must go in the job's `exclude-paths`, or any change to it fails the gate
 
 `scripts/assert-package.mjs`, `scripts/assert-pack.sh`, and the `ci.yml`
 artifact job hardcode `@pi-kit/permissions`; parameterise them rather than

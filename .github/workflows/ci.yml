@@ -102,6 +102,68 @@ jobs:
       - name: Validate the packed artifact with real Pi
         run: sh scripts/assert-pack.sh "$RUNNER_TEMP/pack/pack.json"
 
+  # One run measures every package and gates it twice: Node enforces a total
+  # line floor, and the shared action enforces changed-line coverage from the
+  # same LCOV report.
+  coverage:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history: diff-cover needs the merge base with the PR base.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Install pnpm from packageManager
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
+
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install diff-cover
+        run: |
+          python3 -m venv "$RUNNER_TEMP/diff-cover"
+          "$RUNNER_TEMP/diff-cover/bin/python" -m pip install 'diff-cover>=10.2,<11'
+          printf 'DIFF_COVER_PATH=%s\n' "$RUNNER_TEMP/diff-cover/bin/diff-cover" >> "$GITHUB_ENV"
+
+      # The floor is a backstop for broken collection, not the regression gate:
+      # tests overlap, so losing one test file moves the total about a point.
+      # ponytail: Node omits modules no test loads, so deleting a module's only
+      # importing test escapes both gates; require an LCOV record per in-scope
+      # file if that ever happens.
+      - name: Run tests with coverage
+        run: >-
+          pnpm test --experimental-test-coverage --test-coverage-lines=90
+          --test-reporter=spec --test-reporter-destination=stdout
+          --test-reporter=lcov --test-reporter-destination=lcov.info
+
+      # A package's Pi factory (the default export) needs real Pi, so a PR that
+      # changes only those lines fails; cover it with a stub `pi` if one does.
+      - name: Check changed-line coverage
+        uses: j7an/shared-workflows/actions/coverage@f6fedd5f4a9e33ff83c893abcc608e402c1ee1b0 # v4.10.0
+        with:
+          report-path: lcov.info
+          diff-cover-path: ${{ env.DIFF_COVER_PATH }}
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          minimum: "90"
+          source-paths: |
+            :(glob)packages/*/src/**
+            :(glob)packages/*/extensions/**
+
   pi-window:
     name: pi window
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
