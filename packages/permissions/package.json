@@ -1,6 +1,6 @@
 {
   "name": "@pi-kit/permissions",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Allow/ask/deny guardrail extension for the Pi coding agent. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
