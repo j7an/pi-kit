@@ -1,6 +1,13 @@
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.ts";
-import { type Config, type PathRuleSet, type RuleSet, validateConfig } from "./schema.ts";
+import {
+  type Config,
+  type Mode,
+  type PathRuleSet,
+  RANK,
+  type RuleSet,
+  validateConfig,
+} from "./schema.ts";
 
 const CONFIG_FILE = "pi-kit-permissions.json";
 
@@ -84,34 +91,50 @@ function mergeRuleSet(base: RuleSet | undefined, patch: RuleSet | undefined): Ru
 function mergePathRuleSet(
   base: PathRuleSet | undefined,
   patch: PathRuleSet | undefined,
+  projectScope: boolean,
 ): PathRuleSet | undefined {
   if (patch === undefined) return base;
   if (base === undefined) return patch;
   const out: PathRuleSet = { ...mergeRuleSet(base, patch) };
-  // `appliesTo` selects WHICH tools are gated, not what is denied, so a scope
-  // must be able to narrow it. It overwrites; it does not union.
-  const appliesTo = patch.appliesTo ?? base.appliesTo;
+  // `appliesTo` selects WHICH tools are gated, so the global scope may narrow
+  // it. A project may not: dropping a tool would ungate every inherited path
+  // rule for it, so a project's `appliesTo` unions instead.
+  const appliesTo = projectScope
+    ? unionList(base.appliesTo, patch.appliesTo)
+    : (patch.appliesTo ?? base.appliesTo);
   if (appliesTo !== undefined) out.appliesTo = appliesTo;
   return out;
+}
+
+/** A project may only make a scalar stricter; other scopes overwrite it. */
+function mergeMode<M extends Mode>(base: M | undefined, patch: M, projectScope: boolean): M {
+  return projectScope && base !== undefined && RANK[base] > RANK[patch] ? base : patch;
 }
 
 /**
  * Merges one scope onto another.
  *
  * Rule lists union (deduplicated), so a patch can add rules but never remove
- * an inherited one. Scalars and `appliesTo` overwrite. Keys the patch omits
- * are inherited untouched.
+ * an inherited one. Scalars and `appliesTo` overwrite, except from a project
+ * scope, which may only make scalars stricter and `appliesTo` wider. Keys the
+ * patch omits are inherited untouched.
  */
-export function mergeConfig(base: Config, patch: Config): Config {
+export function mergeConfig(base: Config, patch: Config, projectScope = false): Config {
   const out: Config = { ...base };
-  if (patch.defaultMode !== undefined) out.defaultMode = patch.defaultMode;
-  if (patch.headlessAsk !== undefined) out.headlessAsk = patch.headlessAsk;
-  if (patch.outsideCwd !== undefined) out.outsideCwd = patch.outsideCwd;
+  if (patch.defaultMode !== undefined) {
+    out.defaultMode = mergeMode(base.defaultMode, patch.defaultMode, projectScope);
+  }
+  if (patch.headlessAsk !== undefined) {
+    out.headlessAsk = mergeMode(base.headlessAsk, patch.headlessAsk, projectScope);
+  }
+  if (patch.outsideCwd !== undefined) {
+    out.outsideCwd = mergeMode(base.outsideCwd, patch.outsideCwd, projectScope);
+  }
   const tools = mergeRuleSet(base.tools, patch.tools);
   if (tools !== undefined) out.tools = tools;
   const bash = mergeRuleSet(base.bash, patch.bash);
   if (bash !== undefined) out.bash = bash;
-  const paths = mergePathRuleSet(base.paths, patch.paths);
+  const paths = mergePathRuleSet(base.paths, patch.paths, projectScope);
   if (paths !== undefined) out.paths = paths;
   return out;
 }
@@ -123,15 +146,16 @@ export function mergeConfig(base: Config, patch: Config): Config {
  * and never discards a sibling. Any malformed scope forces `defaultMode` to
  * "ask" and `headlessAsk` to "deny" for the session, so a broken config fails
  * closed instead of silently loosening to the permissive defaults. Project config is read only when the
- * project is trusted, and an untrusted file is never opened.
+ * project is trusted, and an untrusted file is never opened. A project value
+ * looser than the inherited one is ignored and reported.
  */
 export function loadConfig(opts: LoadOptions): LoadResult {
   const problems: string[] = [];
   let forcedAsk = false;
   let config: Config = mergeConfig({}, DEFAULT_CONFIG);
 
-  const apply = (outcome: ScopeOutcome): void => {
-    if (outcome.kind === "valid") config = mergeConfig(config, outcome.config);
+  const apply = (outcome: ScopeOutcome, projectScope = false): void => {
+    if (outcome.kind === "valid") config = mergeConfig(config, outcome.config, projectScope);
     if (outcome.kind === "malformed") forcedAsk = true;
   };
 
@@ -139,7 +163,18 @@ export function loadConfig(opts: LoadOptions): LoadResult {
 
   const projectPath = projectConfigPath(opts.cwd, opts.configDirName);
   if (opts.trusted) {
-    apply(readScope(projectPath, opts.readFile, problems));
+    const outcome = readScope(projectPath, opts.readFile, problems);
+    apply(outcome, true);
+    if (outcome.kind === "valid") {
+      for (const key of ["defaultMode", "headlessAsk", "outsideCwd"] as const) {
+        const value = outcome.config[key];
+        if (value !== undefined && value !== config[key]) {
+          problems.push(
+            `${projectPath}: ${key} "${value}" ignored; a project can only make it stricter`,
+          );
+        }
+      }
+    }
   } else if (opts.exists(projectPath)) {
     // Deliberately does not read the file. An untrusted repository's config is
     // attacker-authored content; knowing it is there is enough to report the

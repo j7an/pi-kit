@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG } from "./config/defaults.ts";
-import type { Config, Mode, RuleSet } from "./config/schema.ts";
+import { type Config, type Mode, RANK, type RuleSet } from "./config/schema.ts";
 import { matchCommand } from "./match/command.ts";
 import { isOutsideCwd, matchPath } from "./match/path.ts";
 
@@ -25,7 +25,6 @@ export type Decision = {
   segment?: string;
 };
 
-const RANK: Record<Mode, number> = { allow: 0, ask: 1, deny: 2 };
 const ORDER = ["deny", "ask", "allow"] as const;
 
 type Match = { outcome: Mode; dimension: Dimension; pattern: string; segment?: string };
