@@ -56,6 +56,15 @@ test("specificity does not change order: a broad deny beats a narrow allow", () 
   assert.equal(decide(config, bash("git status"), CWD).outcome, "deny");
 });
 
+test("a wrapper does not let an allow rule loosen a deny default", () => {
+  const config: Config = { ...base, defaultMode: "deny", bash: { allow: ["npm test"] } };
+  assert.equal(decide(config, bash("timeout 30 npm test"), CWD).outcome, "deny");
+});
+
+test("default config: an escaped assignment space does not hide a denied command", () => {
+  assert.equal(decide(DEFAULT_CONFIG, bash("env FOO=x\\  git push --force"), CWD).outcome, "deny");
+});
+
 // --- compound commands ---------------------------------------------------
 
 test("default config: a backgrounded command does not hide a denied one", () => {

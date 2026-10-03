@@ -109,16 +109,115 @@ export function splitCommand(command: string): string[] {
   return segments;
 }
 
+type Word = { start: number; value: string; op: boolean };
+
+function shellWords(segment: string): Word[] {
+  const words: Word[] = [];
+  let start: number | undefined;
+  let value = "";
+  let quote: "'" | '"' | undefined;
+
+  const flush = (): void => {
+    if (start !== undefined) words.push({ start, value, op: false });
+    start = undefined;
+    value = "";
+  };
+
+  let i = 0;
+  while (i < segment.length) {
+    const ch = segment[i] as string;
+    const next = segment[i + 1];
+    if (quote !== undefined) {
+      if (quote === '"' && ch === "\\" && next !== undefined) {
+        value += next;
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = undefined;
+      else value += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === " " || ch === "\t") {
+      flush();
+      i += 1;
+      continue;
+    }
+    if (ch === "<" || ch === ">" || ch === "&") {
+      flush();
+      const opStart = i;
+      while (i < segment.length && /[<>&]/.test(segment[i] as string)) i += 1;
+      words.push({ start: opStart, value: segment.slice(opStart, i), op: true });
+      continue;
+    }
+    start ??= i;
+    if (ch === "\\" && next !== undefined) {
+      value += next;
+      i += 2;
+      continue;
+    }
+    if (ch === "'" || ch === '"') quote = ch;
+    else value += ch;
+    i += 1;
+  }
+  flush();
+  return words;
+}
+
+// Deny/ask only: generic skipping can over-strip, which only adds a candidate. Allow needs exact per-wrapper parsing.
+const WRAPPERS = new Set([
+  "timeout",
+  "time",
+  "nice",
+  "nohup",
+  "stdbuf",
+  "command",
+  "builtin",
+  "noglob",
+  "env",
+]);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const WRAPPER_ARG = /^-|^\d|^[A-Z]+$/;
+
+function stripPrefixes(segment: string): string | undefined {
+  const words = shellWords(segment);
+  let wrapperSeen = false;
+  let i = 0;
+  while (i < words.length) {
+    const word = words[i] as Word;
+    if (word.op) break;
+    if (ASSIGNMENT.test(word.value)) {
+      i += 1;
+      continue;
+    }
+    if (WRAPPERS.has(word.value)) {
+      wrapperSeen = true;
+      i += 1;
+      continue;
+    }
+    if (wrapperSeen && WRAPPER_ARG.test(word.value)) {
+      i += 1;
+      continue;
+    }
+    break;
+  }
+  return 0 < i && i < words.length ? segment.slice((words[i] as Word).start) : undefined;
+}
+
 /**
  * Everything a `bash` pattern is matched against: the whole trimmed command
- * first, then each segment. Deduplicated, so a single-segment command yields
- * one candidate.
+ * first, then each segment and its prefix-stripped form. Deduplicated.
+ * Extra candidates are for deny/ask only.
  */
 export function commandCandidates(command: string): string[] {
   const candidates = new Set<string>();
   const whole = command.trim();
   if (whole !== "") candidates.add(whole);
-  for (const segment of splitCommand(command)) candidates.add(segment);
+  for (const segment of splitCommand(command)) {
+    candidates.add(segment);
+    const stripped = stripPrefixes(segment);
+    if (stripped !== undefined) candidates.add(stripped);
+  }
   return [...candidates];
 }
 

@@ -73,9 +73,28 @@ test("commandCandidates: whole command first, then segments, deduplicated", () =
   assert.deepEqual(commandCandidates(""), []);
 });
 
+test("commandCandidates: a bare prefix adds no candidate", () => {
+  assert.deepEqual(commandCandidates("FOO=1"), ["FOO=1"]);
+  assert.deepEqual(commandCandidates("nohup"), ["nohup"]);
+  assert.deepEqual(commandCandidates("timeout 30"), ["timeout 30"]);
+  assert.deepEqual(commandCandidates("FOO=1 rm x"), ["FOO=1 rm x", "rm x"]);
+});
+
 const MATCH_CASES: Array<
   [label: string, pattern: string, command: string, expected: string | undefined]
 > = [
+  ["past timeout", "git push --force*", "timeout 30 git push --force", "git push --force"],
+  ["past timeout options and signal", "rm -rf *", "timeout -s KILL 30 rm -rf x", "rm -rf x"],
+  ["past an assignment", "rm -rf *", "FOO=1 rm -rf x", "rm -rf x"],
+  ["past a quoted assignment", "git push*", 'GIT_SSH_COMMAND="ssh -i k" git push', "git push"],
+  ["past chained prefixes", "rm -rf *", "env A=1 nohup rm -rf x", "rm -rf x"],
+  ["past nice -n", "rm -rf *", "nice -n 10 rm -rf x", "rm -rf x"],
+  ["non-wrapper first word is not stripped", "rm -rf *", "echo rm -rf x", undefined],
+  ["past a single-quoted assignment", "rm -rf *", "FOO='a b' rm -rf x", "rm -rf x"],
+  ["past double-quoted escapes", "rm -rf *", 'FOO="a\\" b" rm -rf x', "rm -rf x"],
+  ["empty quoted word stops stripping", "rm -rf *", "env '' rm -rf x", undefined],
+  ["redirection stops stripping", "rm -rf *", "FOO=x>.env rm -rf x", undefined],
+  ["quoted redirection remains in an assignment", "rm -rf *", 'FOO="x>y" rm -rf x', "rm -rf x"],
   ["trailing wildcard on a plain command", "rm -rf *", "rm -rf /tmp/build", "rm -rf /tmp/build"],
   ["catches the second segment of &&", "rm -rf *", "cd build && rm -rf .", "rm -rf ."],
   ["catches the second segment of ;", "rm -rf *", "make clean; rm -rf dist", "rm -rf dist"],
@@ -106,4 +125,5 @@ test('matchCommand: candidates "whole" ignores segments', () => {
   assert.equal(matchCommand("ls", "ls && curl example.com", "whole"), undefined);
   assert.equal(matchCommand("ls*", "ls && curl example.com", "whole"), "ls && curl example.com");
   assert.equal(matchCommand("ls", "  ls  ", "whole"), "ls");
+  assert.equal(matchCommand("npm test", "timeout 30 npm test", "whole"), undefined);
 });

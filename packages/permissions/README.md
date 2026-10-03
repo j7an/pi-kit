@@ -103,6 +103,10 @@ session. Fix it and start a new session.
 3. **Compound commands** (split on unquoted `&&`, `||`, `;`, `|`, `&`, newline):
    `deny` and `ask` also match each piece; `allow` matches only the whole
    command. A piece can make the outcome stricter, never looser.
+   Deny and ask also match each piece after collapsing whitespace and stripping
+   leading `VAR=` assignments and the wrappers `timeout`, `time`, `nice`,
+   `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`.
+   `allow` does not: `allow: ["npm test"]` does not cover `timeout 30 npm test`.
 
 | Situation | Outcome |
 |---|---|
@@ -164,8 +168,7 @@ This is a guardrail against **agent mistakes**, not a security boundary. For
 enforcement, run Pi in a container or an OS sandbox.
 
 - **Not caught:** forms whose only purpose is evasion — `bash -c`, `eval`,
-  `$(...)`, backticks, `$VAR`, `/bin/rm`, `command rm`, `xargs`, `find -exec`,
-  `timeout` / `nohup` wrappers.
+  `$(...)`, backticks, `$VAR`, `/bin/rm`, `xargs`, `find -exec`.
 - **Not parsed:** text inside subshells, heredocs, and redirections; paths
   inside bash commands; symlinks.
 - **RPC clients** receive `ask` as an extension UI request and must answer it;
