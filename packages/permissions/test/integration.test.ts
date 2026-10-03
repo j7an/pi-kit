@@ -124,6 +124,25 @@ test("blocks a write to a denied path", async () => {
   assert.equal(result.block, true);
 });
 
+test("bash file-URL-shaped filenames do not become gate errors", async () => {
+  const pi = build();
+  assert.equal(
+    await pi.fire("tool_call", call("bash", { command: "echo x > file://host/x" }), stubCtx()),
+    undefined,
+  );
+});
+
+test("invalid native file URLs remain gate errors", async () => {
+  const pi = build();
+  const result = (await pi.fire(
+    "tool_call",
+    call("write", { path: "file:///tmp/%2Fname" }),
+    stubCtx({ ui: stubUi(ALLOW_ONCE) }),
+  )) as Block;
+  assert.equal(result.block, true);
+  assert.match(result.reason, /gate_error/);
+});
+
 test("blocks writes whose paths Pi would normalize onto a denied target", async () => {
   const pi = build();
   const atPrefixed = (await pi.fire(

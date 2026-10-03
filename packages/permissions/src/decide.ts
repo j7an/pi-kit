@@ -1,7 +1,8 @@
+import { resolve } from "node:path";
 import { DEFAULT_CONFIG } from "./config/defaults.ts";
 import { type Config, type Mode, RANK, type RuleSet } from "./config/schema.ts";
-import { matchCommand } from "./match/command.ts";
-import { isOutsideCwd, matchPath } from "./match/path.ts";
+import { matchCommand, shellPathTargets } from "./match/command.ts";
+import { isOutsideCwd, matchPath, resolvePath } from "./match/path.ts";
 
 type Dimension = "tools" | "bash" | "paths" | "outsideCwd";
 
@@ -64,7 +65,8 @@ function matchRuleSet(
  *
  * If no whole-request dimension matches, the outcome starts at `defaultMode`.
  * Bash deny and ask patterns also check command segments, which may only make
- * that outcome more restrictive. Bash allow patterns check the whole command.
+ * that outcome more restrictive. Bash deny and ask path rules also check redirect
+ * and file-command targets, stricter-only. Bash allow patterns check the whole command.
  *
  * Pure: no session state, no I/O. Session approvals are consulted by the
  * caller only after this returns `ask`, which is what makes "an approval can
@@ -72,7 +74,7 @@ function matchRuleSet(
  */
 export function decide(config: Config, req: PermissionRequest, cwd: string): Decision {
   const matches: Match[] = [];
-  let segmentMatch: Match | undefined;
+  let stricter: Match | undefined;
 
   const toolMatch = matchRuleSet(
     config.tools,
@@ -81,6 +83,7 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
   );
   if (toolMatch) matches.push(toolMatch);
 
+  const appliesTo = config.paths?.appliesTo ?? DEFAULT_CONFIG.paths.appliesTo;
   const command = req.command;
   if (command !== undefined) {
     const whole = command.trim();
@@ -89,14 +92,40 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
     );
     if (bashMatch) matches.push({ ...bashMatch, segment: undefined });
 
-    segmentMatch = matchRuleSet(config.bash, "bash", (pattern, mode) => {
+    stricter = matchRuleSet(config.bash, "bash", (pattern, mode) => {
       if (mode === "allow") return undefined;
       const hit = matchCommand(pattern, command);
       return hit === whole ? undefined : hit;
     });
+
+    for (const target of shellPathTargets(command)) {
+      if (!appliesTo.includes(target.tool)) continue;
+      const hit = matchRuleSet(config.paths, "paths", (pattern, mode) => {
+        if (mode === "allow") return undefined;
+        let resolved: string;
+        try {
+          resolved = resolvePath(target.path, cwd);
+        } catch (error) {
+          const code = error instanceof TypeError && "code" in error ? error.code : undefined;
+          if (
+            !(error instanceof URIError) &&
+            code !== "ERR_INVALID_FILE_URL_HOST" &&
+            code !== "ERR_INVALID_FILE_URL_PATH" &&
+            code !== "ERR_INVALID_URL"
+          ) {
+            throw error;
+          }
+          // Failed URL conversion leaves a literal shell filename.
+          resolved = resolve(cwd, target.path);
+        }
+        return matchPath(pattern, target.path, resolved, cwd) ? target.path : undefined;
+      });
+      if (hit && (stricter === undefined || RANK[hit.outcome] > RANK[stricter.outcome])) {
+        stricter = hit;
+      }
+    }
   }
 
-  const appliesTo = config.paths?.appliesTo ?? DEFAULT_CONFIG.paths.appliesTo;
   if (appliesTo.includes(req.tool)) {
     for (const [index, resolved] of req.paths.entries()) {
       const raw = req.rawPaths[index] ?? resolved;
@@ -122,10 +151,10 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
       : matches.reduce((acc, next) => (RANK[next.outcome] > RANK[acc.outcome] ? next : acc), first);
   const baseline = wholeWinner?.outcome ?? config.defaultMode ?? DEFAULT_CONFIG.defaultMode;
   const worst =
-    segmentMatch &&
-    (RANK[segmentMatch.outcome] > RANK[baseline] ||
-      (wholeWinner === undefined && segmentMatch.outcome === baseline))
-      ? segmentMatch
+    stricter &&
+    (RANK[stricter.outcome] > RANK[baseline] ||
+      (wholeWinner === undefined && stricter.outcome === baseline))
+      ? stricter
       : wholeWinner;
   if (worst === undefined) return { outcome: baseline };
   const decision: Decision = {

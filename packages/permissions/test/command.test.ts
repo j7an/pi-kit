@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { commandCandidates, matchCommand, splitCommand } from "../src/match/command.ts";
+import {
+  commandCandidates,
+  matchCommand,
+  shellPathTargets,
+  splitCommand,
+} from "../src/match/command.ts";
 
 const SPLIT_CASES: Array<[label: string, command: string, expected: string[]]> = [
   ["single command", "rm -rf dist", ["rm -rf dist"]],
@@ -170,3 +175,167 @@ test('matchCommand: candidates "whole" ignores segments', () => {
   assert.equal(matchCommand("npm test", "timeout 30 npm test", "whole"), undefined);
   assert.equal(matchCommand("npm test", "timeout 600 \\\n  npm test", "whole"), undefined);
 });
+
+const TARGET_CASES: Array<
+  [label: string, command: string, expected: Array<{ tool: string; path: string }>]
+> = [
+  ["redirect", "echo x > .env", [{ tool: "write", path: ".env" }]],
+  ["redirect without spaces", "echo x>.env", [{ tool: "write", path: ".env" }]],
+  ["append", "echo x >> .env", [{ tool: "write", path: ".env" }]],
+  ["input redirect", "wc < in", [{ tool: "read", path: "in" }]],
+  [
+    "fd dup then tee",
+    "make 2>&1 | tee build.log",
+    [
+      { tool: "write", path: "1" },
+      { tool: "write", path: "build.log" },
+    ],
+  ],
+  [
+    "cat with quoted and home paths",
+    'cat "a b.txt" ~/.ssh/id_rsa',
+    [
+      { tool: "read", path: "a b.txt" },
+      { tool: "read", path: "~/.ssh/id_rsa" },
+    ],
+  ],
+  [
+    "head option value is checked harmlessly",
+    "head -n 5 f",
+    [
+      { tool: "read", path: "5" },
+      { tool: "read", path: "f" },
+    ],
+  ],
+  [
+    "sed -i is an edit",
+    "sed -i s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  [
+    "sed without -i is a read",
+    "sed s/a/b/ f",
+    [
+      { tool: "read", path: "s/a/b/" },
+      { tool: "read", path: "f" },
+    ],
+  ],
+  [
+    "sed -Ei is an edit",
+    "sed -Ei s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  [
+    "sed -ri is an edit",
+    "sed -ri s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  [
+    "sed cluster without i is a read",
+    "sed -En s/a/b/ f",
+    [
+      { tool: "read", path: "s/a/b/" },
+      { tool: "read", path: "f" },
+    ],
+  ],
+  ["sed attached script filename is a read", "sed -finit.sed f", [{ tool: "read", path: "f" }]],
+  ["sed attached expression is a read", "sed -eihello f", [{ tool: "read", path: "f" }]],
+  ["past a wrapper", "timeout 5 cat .env", [{ tool: "read", path: ".env" }]],
+  [
+    "heredoc target",
+    "cat > .env <<EOF",
+    [
+      { tool: "write", path: ".env" },
+      { tool: "read", path: "EOF" },
+    ],
+  ],
+  ["quoted > is not a redirect", 'echo "a > .env"', []],
+  ["quoted > is an argument, not a redirect", 'grep ">" f', []],
+  [
+    "source order and duplicate targets",
+    "cat a > b a; tee c < d",
+    [
+      { tool: "read", path: "a" },
+      { tool: "write", path: "b" },
+      { tool: "read", path: "a" },
+      { tool: "write", path: "c" },
+      { tool: "read", path: "d" },
+    ],
+  ],
+  ["tail skips options", "tail -f log", [{ tool: "read", path: "log" }]],
+  [
+    "sed long in-place option",
+    "sed --in-place=.bak s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  ["missing redirect target", "echo x >", []],
+  [
+    "only redirects are consumed as redirect targets",
+    "cat < in -n out",
+    [
+      { tool: "read", path: "in" },
+      { tool: "read", path: "out" },
+    ],
+  ],
+  ["inline comment redirect is ignored", "echo ok # > .env", []],
+  ["full-line comment redirect is ignored", "# Save output > .env", []],
+  ["file-command trailing comment is ignored", "cat f # > .env", [{ tool: "read", path: "f" }]],
+  [
+    "comment ends at newline before a real redirect",
+    "echo ok # > ignored\necho x > .env",
+    [{ tool: "write", path: ".env" }],
+  ],
+  [
+    "quoted hash is a file argument",
+    'cat "#" .env',
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "escaped hash is a file argument",
+    "cat \\# .env",
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "hash within a word is literal",
+    "cat f#tag .env",
+    [
+      { tool: "read", path: "f#tag" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "empty quoted word prevents a comment boundary",
+    'cat ""# .env',
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  ["comment after a redirect has no target", "echo x > # .env", []],
+  ["no targets", "echo hi", []],
+  ["empty", "", []],
+];
+
+for (const [label, command, expected] of TARGET_CASES) {
+  test(`shellPathTargets: ${label}`, () => {
+    assert.deepEqual(shellPathTargets(command), expected);
+  });
+}
