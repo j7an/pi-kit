@@ -138,6 +138,7 @@ function shellWords(segment: string): Word[] {
       i += 1;
       continue;
     }
+    if (ch === "#" && start === undefined) break;
     if (ch === " " || ch === "\t") {
       flush();
       i += 1;

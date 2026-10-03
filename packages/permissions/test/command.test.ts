@@ -220,6 +220,47 @@ const TARGET_CASES: Array<
       { tool: "read", path: "out" },
     ],
   ],
+  ["inline comment redirect is ignored", "echo ok # > .env", []],
+  ["full-line comment redirect is ignored", "# Save output > .env", []],
+  ["file-command trailing comment is ignored", "cat f # > .env", [{ tool: "read", path: "f" }]],
+  [
+    "comment ends at newline before a real redirect",
+    "echo ok # > ignored\necho x > .env",
+    [{ tool: "write", path: ".env" }],
+  ],
+  [
+    "quoted hash is a file argument",
+    'cat "#" .env',
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "escaped hash is a file argument",
+    "cat \\# .env",
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "hash within a word is literal",
+    "cat f#tag .env",
+    [
+      { tool: "read", path: "f#tag" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  [
+    "empty quoted word prevents a comment boundary",
+    'cat ""# .env',
+    [
+      { tool: "read", path: "#" },
+      { tool: "read", path: ".env" },
+    ],
+  ],
+  ["comment after a redirect has no target", "echo x > # .env", []],
   ["no targets", "echo hi", []],
   ["empty", "", []],
 ];

@@ -453,3 +453,25 @@ for (const [label, config, command, expected] of [
     assert.deepEqual(decide(config, bash(command), CWD), expected);
   });
 }
+
+for (const command of ["echo ok # > .env", "# Save output > .env", "tee f # .env"]) {
+  test(`bash comment text cannot trigger path rules: ${JSON.stringify(command)}`, () => {
+    assert.deepEqual(decide(DEFAULT_CONFIG, bash(command), CWD), { outcome: "allow" });
+  });
+}
+for (const command of [
+  "echo ok # > ignored\necho x > .env",
+  'tee "#" .env',
+  "tee \\# .env",
+  "tee f#tag .env",
+  'tee ""# .env',
+]) {
+  test(`literal hashes and newline redirects preserve path checks: ${JSON.stringify(command)}`, () => {
+    assert.deepEqual(decide(DEFAULT_CONFIG, bash(command), CWD), {
+      outcome: "deny",
+      dimension: "paths",
+      pattern: ".env",
+      segment: ".env",
+    });
+  });
+}
