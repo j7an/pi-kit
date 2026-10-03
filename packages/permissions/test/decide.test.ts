@@ -58,6 +58,19 @@ test("specificity does not change order: a broad deny beats a narrow allow", () 
 
 // --- compound commands ---------------------------------------------------
 
+test("default config: a backgrounded command does not hide a denied one", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("npm run dev & git push --force"), CWD), {
+    outcome: "deny",
+    dimension: "bash",
+    pattern: "git push --force*",
+    segment: "git push --force",
+  });
+});
+
+test("default config: double spaces do not hide a denied command", () => {
+  assert.equal(decide(DEFAULT_CONFIG, bash("rm  -rf dist"), CWD).outcome, "deny");
+});
+
 for (const command of ["# it's stale\nrm -rf dist", "npm test # don't cache\ngit push --force"]) {
   test(`comments cannot hide a denied command: ${JSON.stringify(command)}`, () => {
     assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");

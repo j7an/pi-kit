@@ -2,7 +2,7 @@ import { globToRegExp } from "./glob.ts";
 
 /**
  * Splits a shell command into segments on unquoted `&&`, `||`, `;`, `|`,
- * `|&`, and newline.
+ * `|&`, `&`, and newline. Unquoted runs of spaces and tabs collapse to one space.
  *
  * This is a scanner, not a parser. It understands single quotes, double
  * quotes, backslash escapes, and line comments: parentheses, `$(...)`,
@@ -17,12 +17,14 @@ export function splitCommand(command: string): string[] {
   let current = "";
   let quote: "'" | '"' | undefined;
   let wordStart = true;
+  let blank = false;
 
   const flush = (): void => {
     const trimmed = current.trim();
     if (trimmed !== "") segments.push(trimmed);
     current = "";
     wordStart = true;
+    blank = false;
   };
 
   let i = 0;
@@ -33,17 +35,20 @@ export function splitCommand(command: string): string[] {
     if (quote !== undefined) {
       if (quote === '"' && ch === "\\" && next !== undefined) {
         current += ch + next;
+        blank = false;
         i += 2;
         continue;
       }
       if (ch === quote) quote = undefined;
       current += ch;
+      blank = false;
       i += 1;
       continue;
     }
 
     if (ch === "\\" && next !== undefined) {
       current += ch + next;
+      blank = false;
       if (next !== "\n") wordStart = false;
       i += 2;
       continue;
@@ -52,6 +57,7 @@ export function splitCommand(command: string): string[] {
       quote = ch;
       wordStart = false;
       current += ch;
+      blank = false;
       i += 1;
       continue;
     }
@@ -59,6 +65,7 @@ export function splitCommand(command: string): string[] {
       const end = command.indexOf("\n", i);
       const stop = end === -1 ? command.length : end;
       current += command.slice(i, stop);
+      blank = false;
       i = stop;
       continue;
     }
@@ -77,7 +84,24 @@ export function splitCommand(command: string): string[] {
       i += next === "|" || next === "&" ? 2 : 1;
       continue;
     }
-    current += ch;
+    if (
+      ch === "&" &&
+      next !== "&" &&
+      next !== ">" &&
+      command[i - 1] !== ">" &&
+      command[i - 1] !== "<"
+    ) {
+      flush();
+      i += 1;
+      continue;
+    }
+    if (ch === " " || ch === "\t") {
+      if (!blank) current += " ";
+      blank = true;
+    } else {
+      current += ch;
+      blank = false;
+    }
     wordStart = /[ \t;&|()<>]/.test(ch);
     i += 1;
   }

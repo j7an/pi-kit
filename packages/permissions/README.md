@@ -100,7 +100,7 @@ session. Fix it and start a new session.
    `allow: ["git status"]`.
 2. **Across dimensions**, the most restrictive result wins:
    `deny` > `ask` > `allow`. No match anywhere yields `defaultMode`.
-3. **Compound commands** (split on unquoted `&&`, `||`, `;`, `|`, newline):
+3. **Compound commands** (split on unquoted `&&`, `||`, `;`, `|`, `&`, newline):
    `deny` and `ask` also match each piece; `allow` matches only the whole
    command. A piece can make the outcome stricter, never looser.
 
