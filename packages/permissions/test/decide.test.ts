@@ -65,6 +65,16 @@ test("default config: an escaped assignment space does not hide a denied command
   assert.equal(decide(DEFAULT_CONFIG, bash("env FOO=x\\  git push --force"), CWD).outcome, "deny");
 });
 
+for (const command of [
+  "timeout 600 \\\n  git push --force origin",
+  'GIT_SSH_COMMAND="ssh -i k" \\\n  git push --force',
+  "FOO=1 \\\n  rm -rf dist",
+]) {
+  test("default config: continued prefixes are denied: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+
 // --- compound commands ---------------------------------------------------
 
 test("default config: a backgrounded command does not hide a denied one", () => {

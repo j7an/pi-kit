@@ -127,6 +127,10 @@ function shellWords(segment: string): Word[] {
   while (i < segment.length) {
     const ch = segment[i] as string;
     const next = segment[i + 1];
+    if (ch === "\\" && next === "\n" && quote !== "'") {
+      i += 2;
+      continue;
+    }
     if (quote !== undefined) {
       if (quote === '"' && ch === "\\" && next !== undefined) {
         value += next;
