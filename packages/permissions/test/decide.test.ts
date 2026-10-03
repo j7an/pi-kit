@@ -331,3 +331,125 @@ test("default config: read of /etc/hosts is allowed, write is asked", () => {
     "ask",
   );
 });
+
+// --- shell path targets --------------------------------------------------
+
+for (const command of [
+  "echo K=v >> .env",
+  "echo K=v>.env",
+  "make | tee .env",
+  "sed -i s/a/b/ .env",
+  "cat > .env <<EOF",
+  "cd sub && echo x > .env",
+]) {
+  test(`default config: bash write to .env is denied: ${JSON.stringify(command)}`, () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+for (const command of [
+  "cat .env",
+  "echo x > /tmp/a",
+  "echo x > .env.example",
+  "npm test >/dev/null 2>&1",
+]) {
+  test(`default config: bash command stays allowed: ${JSON.stringify(command)}`, () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "allow");
+  });
+}
+test("bash path targets follow appliesTo: a gated read of a denied path is denied", () => {
+  const config: Config = {
+    ...base,
+    paths: { appliesTo: ["read", "write", "edit"], deny: ["~/.ssh/**"] },
+  };
+  assert.equal(decide(config, bash("cat ~/.ssh/id_rsa"), CWD).outcome, "deny");
+});
+test("a bash path allow cannot loosen an ask default", () => {
+  const config: Config = { ...base, defaultMode: "ask", paths: { allow: ["dist/**"] } };
+  assert.equal(decide(config, bash("echo x > dist/a"), CWD).outcome, "ask");
+});
+test("a bash path match is attributed to the paths dimension and the target", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("echo K=v >> .env"), CWD), {
+    outcome: "deny",
+    dimension: "paths",
+    pattern: ".env",
+    segment: ".env",
+  });
+});
+
+for (const [label, config, command, expected] of [
+  [
+    "path ask tightens a whole-command allow",
+    {
+      ...base,
+      defaultMode: "deny",
+      bash: { allow: ["echo x > src/a"] },
+      paths: { ask: ["src/**"] },
+    },
+    "echo x > src/a",
+    { outcome: "ask", dimension: "paths", pattern: "src/**", segment: "src/a" },
+  ],
+  [
+    "path ask cannot loosen a deny default",
+    { ...base, defaultMode: "deny", paths: { ask: ["src/**"] } },
+    "echo x > src/a",
+    { outcome: "deny" },
+  ],
+  [
+    "path attribution survives an ask default",
+    { ...base, defaultMode: "ask", paths: { ask: ["src/**"] } },
+    "echo x > src/a",
+    { outcome: "ask", dimension: "paths", pattern: "src/**", segment: "src/a" },
+  ],
+  [
+    "path deny beats an earlier segment ask",
+    { ...base, bash: { ask: ["ls"] }, paths: { deny: [".env"] } },
+    "ls && echo x > .env",
+    { outcome: "deny", dimension: "paths", pattern: ".env", segment: ".env" },
+  ],
+  [
+    "segment deny keeps attribution on a path deny tie",
+    { ...base, bash: { deny: ["ls"] }, paths: { deny: [".env"] } },
+    "ls && echo x > .env",
+    { outcome: "deny", dimension: "bash", pattern: "ls", segment: "ls" },
+  ],
+  [
+    "whole-request deny keeps attribution on a path deny tie",
+    { ...base, tools: { deny: ["bash"] }, paths: { deny: [".env"] } },
+    "echo x > .env",
+    { outcome: "deny", dimension: "tools", pattern: "bash" },
+  ],
+  [
+    "later deny beats an earlier path ask",
+    { ...base, paths: { ask: ["src/**"], deny: [".env"] } },
+    "tee src/a .env",
+    { outcome: "deny", dimension: "paths", pattern: ".env", segment: ".env" },
+  ],
+  [
+    "first path match keeps attribution on a tie",
+    { ...base, paths: { deny: ["second", "first"] } },
+    "tee first second",
+    { outcome: "deny", dimension: "paths", pattern: "first", segment: "first" },
+  ],
+  [
+    "paths resolve against cwd through a wrapper",
+    { ...base, paths: { deny: ["/repo/.env"] } },
+    "timeout 5 tee .env",
+    { outcome: "deny", dimension: "paths", pattern: "/repo/.env", segment: ".env" },
+  ],
+  [
+    "imitated edit can be omitted from appliesTo",
+    { ...base, paths: { appliesTo: ["write"], deny: [".env"] } },
+    "sed -i s/a/b/ .env",
+    { outcome: "allow" },
+  ],
+  [
+    "outsideCwd ignores an extracted write",
+    { ...base, outsideCwd: "deny", paths: { appliesTo: ["read", "write", "edit"] } },
+    "echo x > /etc/hosts",
+    { outcome: "allow" },
+  ],
+] satisfies Array<[string, Config, string, ReturnType<typeof decide>]>) {
+  test(`bash path targets: ${label}`, () => {
+    assert.deepEqual(decide(config, bash(command), CWD), expected);
+  });
+}

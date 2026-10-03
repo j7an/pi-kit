@@ -109,6 +109,12 @@ session. Fix it and start a new session.
    leading `VAR=` assignments and the wrappers `timeout`, `time`, `nice`,
    `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`.
    `allow` does not: `allow: ["npm test"]` does not cover `timeout 30 npm test`.
+4. **Shell path targets:** redirect targets and the file arguments of `cat`,
+   `head`, `tail`, `sed` and `tee` are checked against `paths.deny` and
+   `paths.ask` as the tool they imitate (`>` and `tee` = write, `sed -i` =
+   edit, the rest = read), and only when that tool is in `appliesTo`. These
+   checks can only make the outcome stricter. Path `allow` and `outsideCwd`
+   do not apply to them.
 
 | Situation | Outcome |
 |---|---|
@@ -116,6 +122,7 @@ session. Fix it and start a new session.
 | `tools.allow: ["write"]`, `write /etc/hosts`, `outsideCwd: ask` | ask |
 | `bash.deny` matches one piece of `a && b`, `bash.allow` the other | deny |
 | `bash.allow: ["ls"]`, `defaultMode: deny`, command `ls && curl x` | deny |
+| `echo K=v >> .env` under the defaults | deny |
 
 These rows are executed by `test/decide.test.ts`.
 
@@ -145,12 +152,6 @@ Ask before git and network operations:
 { "bash": { "ask": ["git push*", "git rebase*", "curl *", "wget *", "npm install*"] } }
 ```
 
-Block a bash redirection into a secrets file:
-
-```json
-{ "bash": { "deny": ["* > .env*", "* >> .env*"] } }
-```
-
 Ask by default, allowing only these exact commands:
 
 ```json
@@ -171,8 +172,9 @@ enforcement, run Pi in a container or an OS sandbox.
 
 - **Not caught:** forms whose only purpose is evasion — `bash -c`, `eval`,
   `$(...)`, backticks, `$VAR`, `/bin/rm`, `xargs`, `find -exec`.
-- **Not parsed:** text inside subshells, heredocs, and redirections; paths
-  inside bash commands; symlinks.
+- **Not parsed:** text inside subshells; `$HOME` in paths; a relative path
+  after `cd` (it still resolves against cwd); `cp`/`mv` destinations; heredoc
+  bodies, which are scanned like commands and can over-match; symlinks.
 - **RPC clients** receive `ask` as an extension UI request and must answer it;
   an unanswered request leaves the tool call waiting (cancel = deny).
 

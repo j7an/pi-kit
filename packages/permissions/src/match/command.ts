@@ -205,6 +205,43 @@ function stripPrefixes(segment: string): string | undefined {
 }
 
 /**
+ * Extracts redirect and cat/head/tail/sed/tee file targets in source order.
+ * Deny/ask only: $HOME is not expanded, relative targets resolve against cwd
+ * even after cd, and heredoc body lines are tokenized like commands and can
+ * over-match. cp/mv destinations are not checked.
+ */
+export function shellPathTargets(
+  command: string,
+): Array<{ tool: "read" | "write" | "edit"; path: string }> {
+  const targets: Array<{ tool: "read" | "write" | "edit"; path: string }> = [];
+  for (const segment of splitCommand(command)) {
+    const words = shellWords(stripPrefixes(segment) ?? segment);
+    const first = words[0]?.value;
+    const fileCommand =
+      first === "cat" || first === "head" || first === "tail" || first === "sed" || first === "tee";
+    const tool =
+      first === "tee"
+        ? "write"
+        : first === "sed" &&
+            words.some((word) => word.value.startsWith("-i") || word.value.startsWith("--in-place"))
+          ? "edit"
+          : "read";
+    let redirects: Array<"read" | "write"> = [];
+    for (const [index, word] of words.entries()) {
+      if (word.op) {
+        redirects.push(word.value.includes(">") ? "write" : "read");
+      } else if (redirects.length > 0) {
+        for (const redirect of redirects) targets.push({ tool: redirect, path: word.value });
+        redirects = [];
+      } else if (fileCommand && index > 0 && !word.value.startsWith("-")) {
+        targets.push({ tool, path: word.value });
+      }
+    }
+  }
+  return targets;
+}
+
+/**
  * Everything a `bash` pattern is matched against: the whole trimmed command
  * first, then each segment and its prefix-stripped form. Deduplicated.
  * Extra candidates are for deny/ask only.
