@@ -56,7 +56,7 @@ JSON, one file per scope. Every key is optional.
   "paths": {
     "appliesTo": ["write", "edit"],
     "deny": [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-    "ask": [".github/**"],
+    "ask": [".github/**", ".git/**", ".pi/**"],
     "allow": []
   }
 }
@@ -65,6 +65,8 @@ JSON, one file per scope. Every key is optional.
 Under the defaults, `read /etc/hosts` is allowed (`read` is not in
 `appliesTo`), `write /etc/hosts` asks, and `write .env.example` is allowed
 (the deny patterns are deliberately narrow).
+Writes under `.git/` (hooks run as code) and `.pi/` (project extensions and
+this package's own project config) ask.
 
 ### Keys
 
@@ -100,9 +102,13 @@ session. Fix it and start a new session.
    `allow: ["git status"]`.
 2. **Across dimensions**, the most restrictive result wins:
    `deny` > `ask` > `allow`. No match anywhere yields `defaultMode`.
-3. **Compound commands** (split on unquoted `&&`, `||`, `;`, `|`, newline):
+3. **Compound commands** (split on unquoted `&&`, `||`, `;`, `|`, `&`, newline):
    `deny` and `ask` also match each piece; `allow` matches only the whole
    command. A piece can make the outcome stricter, never looser.
+   Deny and ask also match each piece after collapsing whitespace and stripping
+   leading `VAR=` assignments and the wrappers `timeout`, `time`, `nice`,
+   `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`.
+   `allow` does not: `allow: ["npm test"]` does not cover `timeout 30 npm test`.
 
 | Situation | Outcome |
 |---|---|
@@ -164,8 +170,7 @@ This is a guardrail against **agent mistakes**, not a security boundary. For
 enforcement, run Pi in a container or an OS sandbox.
 
 - **Not caught:** forms whose only purpose is evasion — `bash -c`, `eval`,
-  `$(...)`, backticks, `$VAR`, `/bin/rm`, `command rm`, `xargs`, `find -exec`,
-  `timeout` / `nohup` wrappers.
+  `$(...)`, backticks, `$VAR`, `/bin/rm`, `xargs`, `find -exec`.
 - **Not parsed:** text inside subshells, heredocs, and redirections; paths
   inside bash commands; symlinks.
 - **RPC clients** receive `ask` as an extension UI request and must answer it;

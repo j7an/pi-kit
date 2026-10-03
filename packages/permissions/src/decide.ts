@@ -108,7 +108,7 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
 
     // `allow` disables the check entirely rather than acting as a match that
     // could override a restrictive defaultMode. Gated by appliesTo: reads are
-    // ungated by default, as in both reference CLIs.
+    // ungated by default because reading destroys nothing.
     const outsideCwd = config.outsideCwd ?? DEFAULT_CONFIG.outsideCwd;
     if (outsideCwd !== "allow" && req.paths.some((p) => isOutsideCwd(p, cwd))) {
       matches.push({ outcome: outsideCwd, dimension: "outsideCwd", pattern: "outsideCwd" });

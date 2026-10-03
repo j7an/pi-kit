@@ -75,7 +75,7 @@ test("DEFAULT_CONFIG: matches the spec's normative JSON projection", () => {
     paths: {
       appliesTo: ["write", "edit"],
       deny: [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-      ask: [".github/**"],
+      ask: [".github/**", ".git/**", ".pi/**"],
       allow: [],
     },
   });

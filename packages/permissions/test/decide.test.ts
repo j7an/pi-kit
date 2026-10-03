@@ -56,7 +56,39 @@ test("specificity does not change order: a broad deny beats a narrow allow", () 
   assert.equal(decide(config, bash("git status"), CWD).outcome, "deny");
 });
 
+test("a wrapper does not let an allow rule loosen a deny default", () => {
+  const config: Config = { ...base, defaultMode: "deny", bash: { allow: ["npm test"] } };
+  assert.equal(decide(config, bash("timeout 30 npm test"), CWD).outcome, "deny");
+});
+
+test("default config: an escaped assignment space does not hide a denied command", () => {
+  assert.equal(decide(DEFAULT_CONFIG, bash("env FOO=x\\  git push --force"), CWD).outcome, "deny");
+});
+
+for (const command of [
+  "timeout 600 \\\n  git push --force origin",
+  'GIT_SSH_COMMAND="ssh -i k" \\\n  git push --force',
+  "FOO=1 \\\n  rm -rf dist",
+]) {
+  test("default config: continued prefixes are denied: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+
 // --- compound commands ---------------------------------------------------
+
+test("default config: a backgrounded command does not hide a denied one", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("npm run dev & git push --force"), CWD), {
+    outcome: "deny",
+    dimension: "bash",
+    pattern: "git push --force*",
+    segment: "git push --force",
+  });
+});
+
+test("default config: double spaces do not hide a denied command", () => {
+  assert.equal(decide(DEFAULT_CONFIG, bash("rm  -rf dist"), CWD).outcome, "deny");
+});
 
 for (const command of ["# it's stale\nrm -rf dist", "npm test # don't cache\ngit push --force"]) {
   test(`comments cannot hide a denied command: ${JSON.stringify(command)}`, () => {
@@ -279,6 +311,22 @@ test("default config: allows .env.example while denying .env", () => {
   assert.equal(decide(DEFAULT_CONFIG, file("write", ".env", "/repo/.env"), CWD).outcome, "deny");
   assert.equal(
     decide(DEFAULT_CONFIG, file("write", ".env.example", "/repo/.env.example"), CWD).outcome,
+    "allow",
+  );
+});
+
+test("default config: writes under .git and .pi ask; .gitignore does not", () => {
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("write", ".git/config", "/repo/.git/config"), CWD).outcome,
+    "ask",
+  );
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("edit", ".pi/extensions/x.ts", "/repo/.pi/extensions/x.ts"), CWD)
+      .outcome,
+    "ask",
+  );
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("write", ".gitignore", "/repo/.gitignore"), CWD).outcome,
     "allow",
   );
 });
