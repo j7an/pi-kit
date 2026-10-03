@@ -305,6 +305,22 @@ test("default config: allows .env.example while denying .env", () => {
   );
 });
 
+test("default config: writes under .git and .pi ask; .gitignore does not", () => {
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("write", ".git/config", "/repo/.git/config"), CWD).outcome,
+    "ask",
+  );
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("edit", ".pi/extensions/x.ts", "/repo/.pi/extensions/x.ts"), CWD)
+      .outcome,
+    "ask",
+  );
+  assert.equal(
+    decide(DEFAULT_CONFIG, file("write", ".gitignore", "/repo/.gitignore"), CWD).outcome,
+    "allow",
+  );
+});
+
 test("default config: read of /etc/hosts is allowed, write is asked", () => {
   assert.equal(
     decide(DEFAULT_CONFIG, file("read", "/etc/hosts", "/etc/hosts"), CWD).outcome,

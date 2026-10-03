@@ -56,7 +56,7 @@ JSON, one file per scope. Every key is optional.
   "paths": {
     "appliesTo": ["write", "edit"],
     "deny": [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-    "ask": [".github/**"],
+    "ask": [".github/**", ".git/**", ".pi/**"],
     "allow": []
   }
 }
@@ -65,6 +65,8 @@ JSON, one file per scope. Every key is optional.
 Under the defaults, `read /etc/hosts` is allowed (`read` is not in
 `appliesTo`), `write /etc/hosts` asks, and `write .env.example` is allowed
 (the deny patterns are deliberately narrow).
+Writes under `.git/` (hooks run as code) and `.pi/` (project extensions and
+this package's own project config) ask.
 
 ### Keys
 
