@@ -349,6 +349,8 @@ for (const command of [
   "echo K=v>.env",
   "make | tee .env",
   "sed -i s/a/b/ .env",
+  "sed -Ei s/a/b/ .env",
+  "sed -ri s/a/b/ .env",
   "cat > .env <<EOF",
   "cd sub && echo x > .env",
 ]) {
@@ -361,6 +363,14 @@ for (const command of [
   "echo x > /tmp/a",
   "echo x > .env.example",
   "npm test >/dev/null 2>&1",
+  "echo x > file://host/x",
+  "cat > notes.md <<EOF\n> file://server/share/doc\nEOF",
+  "echo x > file:///tmp/x",
+  "echo x > file:///tmp/%2Fname",
+  "echo x > file://%/x",
+  "echo x > file:///tmp/%FF",
+  "sed -finit.sed .env",
+  "sed -eihello .env",
 ]) {
   test(`default config: bash command stays allowed: ${JSON.stringify(command)}`, () => {
     assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "allow");
@@ -386,7 +396,69 @@ test("a bash path match is attributed to the paths dimension and the target", ()
   });
 });
 
+test("sed short-option clusters apply edit asks", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("sed -Ei s/a/b/ .github/workflows/ci.yml"), CWD), {
+    outcome: "ask",
+    dimension: "paths",
+    pattern: ".github/**",
+    segment: ".github/workflows/ci.yml",
+  });
+});
+
+test("gated reads tolerate invalid file-URL-shaped shell filenames", () => {
+  const config: Config = {
+    ...base,
+    paths: { appliesTo: ["read", "write", "edit"], deny: [".env"] },
+  };
+  assert.deepEqual(decide(config, bash("cat file://host/x"), CWD), { outcome: "allow" });
+});
+
+test("unrelated shell path resolution errors still propagate", () => {
+  const config: Config = { ...base, paths: { deny: ["/protected/**"] } };
+  assert.throws(() => decide(config, bash("echo x > out"), undefined as unknown as string));
+});
+
 for (const [label, config, command, expected] of [
+  [
+    "invalid file-URL-shaped targets still match secret basenames",
+    DEFAULT_CONFIG,
+    "echo x > file://host/.env",
+    { outcome: "deny", dimension: "paths", pattern: "**/.env", segment: "file://host/.env" },
+  ],
+  [
+    "invalid file-URL-shaped targets match raw denies",
+    { ...base, paths: { deny: ["file://host/**"] } },
+    "echo x > file://host/x",
+    {
+      outcome: "deny",
+      dimension: "paths",
+      pattern: "file://host/**",
+      segment: "file://host/x",
+    },
+  ],
+  [
+    "invalid file-URL-shaped targets match canonical literal filenames",
+    { ...base, paths: { deny: ["/repo/file:/host/**"] } },
+    "echo x > file://host/x",
+    {
+      outcome: "deny",
+      dimension: "paths",
+      pattern: "/repo/file:/host/**",
+      segment: "file://host/x",
+    },
+  ],
+  [
+    "invalid file-URL-shaped targets keep raw ask attribution",
+    { ...base, paths: { ask: ["file://host/**"] } },
+    "echo x > file://host/x",
+    { outcome: "ask", dimension: "paths", pattern: "file://host/**", segment: "file://host/x" },
+  ],
+  [
+    "successful file-URL normalization retains existing path checks",
+    { ...base, paths: { deny: ["/tmp/**"] } },
+    "echo x > file:///tmp/x",
+    { outcome: "deny", dimension: "paths", pattern: "/tmp/**", segment: "file:///tmp/x" },
+  ],
   [
     "path ask tightens a whole-command allow",
     {

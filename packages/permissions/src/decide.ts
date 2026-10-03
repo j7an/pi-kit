@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { DEFAULT_CONFIG } from "./config/defaults.ts";
 import { type Config, type Mode, RANK, type RuleSet } from "./config/schema.ts";
 import { matchCommand, shellPathTargets } from "./match/command.ts";
@@ -101,9 +102,23 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
       if (!appliesTo.includes(target.tool)) continue;
       const hit = matchRuleSet(config.paths, "paths", (pattern, mode) => {
         if (mode === "allow") return undefined;
-        return matchPath(pattern, target.path, resolvePath(target.path, cwd), cwd)
-          ? target.path
-          : undefined;
+        let resolved: string;
+        try {
+          resolved = resolvePath(target.path, cwd);
+        } catch (error) {
+          const code = error instanceof TypeError && "code" in error ? error.code : undefined;
+          if (
+            !(error instanceof URIError) &&
+            code !== "ERR_INVALID_FILE_URL_HOST" &&
+            code !== "ERR_INVALID_FILE_URL_PATH" &&
+            code !== "ERR_INVALID_URL"
+          ) {
+            throw error;
+          }
+          // Failed URL conversion leaves a literal shell filename.
+          resolved = resolve(cwd, target.path);
+        }
+        return matchPath(pattern, target.path, resolved, cwd) ? target.path : undefined;
       });
       if (hit && (stricter === undefined || RANK[hit.outcome] > RANK[stricter.outcome])) {
         stricter = hit;

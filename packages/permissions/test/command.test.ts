@@ -223,6 +223,32 @@ const TARGET_CASES: Array<
       { tool: "read", path: "f" },
     ],
   ],
+  [
+    "sed -Ei is an edit",
+    "sed -Ei s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  [
+    "sed -ri is an edit",
+    "sed -ri s/a/b/ f",
+    [
+      { tool: "edit", path: "s/a/b/" },
+      { tool: "edit", path: "f" },
+    ],
+  ],
+  [
+    "sed cluster without i is a read",
+    "sed -En s/a/b/ f",
+    [
+      { tool: "read", path: "s/a/b/" },
+      { tool: "read", path: "f" },
+    ],
+  ],
+  ["sed attached script filename is a read", "sed -finit.sed f", [{ tool: "read", path: "f" }]],
+  ["sed attached expression is a read", "sed -eihello f", [{ tool: "read", path: "f" }]],
   ["past a wrapper", "timeout 5 cat .env", [{ tool: "read", path: ".env" }]],
   [
     "heredoc target",

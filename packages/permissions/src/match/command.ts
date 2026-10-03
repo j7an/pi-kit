@@ -228,7 +228,11 @@ export function shellPathTargets(
       first === "tee"
         ? "write"
         : first === "sed" &&
-            words.some((word) => word.value.startsWith("-i") || word.value.startsWith("--in-place"))
+            words.some((word) => {
+              // -e and -f consume the rest of their word as an argument.
+              const cluster = word.value.split(/[ef]/, 1)[0] ?? "";
+              return /^-[A-Za-z]*i/.test(cluster) || word.value.startsWith("--in-place");
+            })
           ? "edit"
           : "read";
     let redirects: Array<"read" | "write"> = [];
