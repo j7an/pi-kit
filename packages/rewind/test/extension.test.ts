@@ -32,13 +32,15 @@ function fixture() {
   const entries: Entry[] = [];
   let leaf: string | null = null;
   const handlers = new Map<string, Handler>();
+  const commands = new Map<string, { description: string; handler: Handler }>();
   let choice: string | undefined;
   let approved = true;
   const api = {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
     appendEntry: (customType: string, data: unknown) =>
       add({ type: "custom", customType, data }, `r${entries.length}`),
-    registerCommand: () => undefined,
+    registerCommand: (name: string, command: { description: string; handler: Handler }) =>
+      commands.set(name, command),
   };
   function add(entry: Omit<Entry, "id" | "parentId">, id: string): Entry {
     const result = { ...entry, id, parentId: leaf };
@@ -66,10 +68,14 @@ function fixture() {
     mode: "tui",
     isIdle: () => true,
     sessionManager,
+    navigateTree: recorder(async () => undefined),
     ui: {
       select: recorder(async () => choice),
       confirm: recorder(async () => approved),
       notify: recorder(() => undefined),
+      onTerminalInput: recorder(() => () => undefined),
+      getEditorText: () => "draft",
+      setEditorText: recorder(() => undefined),
     },
   };
   function resume() {
@@ -79,7 +85,7 @@ function fixture() {
       agentDir: "/agent",
       fs,
       now: () => MAX_AGE_MS + 1,
-      isEscape: () => false,
+      isEscape: (data) => data === "escape",
     });
   }
   resume();
@@ -88,8 +94,8 @@ function fixture() {
     assert.ok(handler, `${name} must be registered`);
     return handler(event, ctx);
   }
-  function prompt(id: string) {
-    return add({ type: "message", message: { role: "user", content: id } } as never, id);
+  function prompt(id: string, content: unknown = id) {
+    return add({ type: "message", message: { role: "user", content } } as never, id);
   }
   function record(id: string, before = A, after = B) {
     return add(
@@ -116,6 +122,7 @@ function fixture() {
     fs,
     entries,
     handlers,
+    commands,
     ctx,
     fire,
     prompt,
@@ -452,6 +459,7 @@ test("native factory registers the hooks without touching the filesystem", () =>
   const handlers = new Map<string, Handler>();
   extension.default({
     on: (name: string, handler: Handler) => handlers.set(name, handler),
+    registerCommand: () => undefined,
   } as never);
   assert.deepEqual([...handlers.keys()].sort(), [
     "session_before_fork",
@@ -461,4 +469,71 @@ test("native factory registers the hooks without touching the filesystem", () =>
     "tool_call",
     "tool_result",
   ]);
+});
+
+async function rewind(f: ReturnType<typeof fixture>) {
+  const command = f.commands.get("rewind");
+  assert.ok(command, "/rewind must be registered");
+  return command.handler("", f.ctx);
+}
+
+test("/rewind is registered", () => {
+  assert.ok(fixture().commands.has("rewind"));
+});
+
+test("/rewind lists user prompts newest first and navigates to the chosen one", async () => {
+  const f = fixture();
+  f.prompt("u1", "first");
+  f.record("r1");
+  f.prompt("u2", "second\nmore");
+  f.choose("1. first");
+  await rewind(f);
+  assert.deepEqual(f.ctx.ui.select.calls, [["Rewind", ["2. second", "1. first"]]]);
+  assert.deepEqual(f.ctx.navigateTree.calls, [["u1"]]);
+});
+
+test("/rewind joins text parts and truncates the first line", async () => {
+  const f = fixture();
+  f.prompt("u1", [
+    { type: "text", text: "hello" },
+    { type: "image", data: "ignored" },
+    { type: "text", text: "world" },
+  ]);
+  f.prompt("u2", `${"a".repeat(80)}\nmore`);
+  await rewind(f);
+  assert.deepEqual(f.ctx.ui.select.calls, [["Rewind", [`2. ${"a".repeat(72)}`, "1. hello world"]]]);
+  assert.deepEqual(f.ctx.navigateTree.calls, []);
+});
+
+test("/rewind while busy notifies and does not navigate", async () => {
+  const f = history();
+  f.ctx.isIdle = () => false;
+  await rewind(f);
+  assert.match(String(f.ctx.ui.notify.calls[0]?.[0]), /wait for the response to finish/);
+  assert.deepEqual(f.ctx.ui.select.calls, []);
+  assert.deepEqual(f.ctx.navigateTree.calls, []);
+});
+
+test("/rewind with no prompts notifies Nothing to rewind", async () => {
+  const f = fixture();
+  await rewind(f);
+  assert.deepEqual(f.ctx.ui.notify.calls, [["Nothing to rewind", "info"]]);
+  assert.deepEqual(f.ctx.ui.select.calls, []);
+});
+
+for (const mode of ["tui", "rpc", "print"]) {
+  test(`session_start registers terminal input only in tui: ${mode}`, async () => {
+    const f = fixture();
+    f.ctx.mode = mode;
+    await f.fire("session_start");
+    assert.equal(f.ctx.ui.onTerminalInput.calls.length, mode === "tui" ? 1 : 0);
+  });
+}
+
+test("/rewind without UI does not open a menu", async () => {
+  const f = history();
+  f.ctx.hasUI = false;
+  await rewind(f);
+  assert.deepEqual(f.ctx.ui.select.calls, []);
+  assert.deepEqual(f.ctx.navigateTree.calls, []);
 });

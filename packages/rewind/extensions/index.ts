@@ -16,7 +16,9 @@ import {
   type ExtensionContext,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import { matchesKey } from "@earendil-works/pi-tui";
 import { applyPlan, formatResult } from "../src/apply.ts";
+import { createEscapeClear } from "../src/escape.ts";
 import { type PlanStep, planRestore } from "../src/plan.ts";
 import { createRecorder, RECORD_TYPE } from "../src/record.ts";
 import { createStore, type Fs, sha256 } from "../src/store.ts";
@@ -78,10 +80,62 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
   pi.on("tool_result", async (event, ctx) => {
     capture(ctx).onToolResult(event);
   });
-  pi.on("session_start", async () => {
+  pi.registerCommand("rewind", {
+    description: "Rewind code and/or conversation to an earlier prompt",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      if (!ctx.isIdle()) {
+        ctx.ui.notify("pi-kit rewind: wait for the response to finish", "warning");
+        return;
+      }
+      const prompts = ctx.sessionManager
+        .getBranch()
+        .filter((entry) => entry.type === "message" && entry.message.role === "user");
+      const choices = prompts
+        .map((entry, index) => {
+          const content =
+            entry.type === "message" && entry.message.role === "user" ? entry.message.content : "";
+          const text =
+            typeof content === "string"
+              ? content
+              : content
+                  .filter((part) => part.type === "text")
+                  .map((part) => part.text)
+                  .join(" ");
+          return {
+            id: entry.id,
+            label: `${index + 1}. ${text.split("\n")[0]?.slice(0, 72) ?? ""}`,
+          };
+        })
+        .reverse();
+      if (choices.length === 0) {
+        ctx.ui.notify("Nothing to rewind", "info");
+        return;
+      }
+      const answer = await ctx.ui.select(
+        "Rewind",
+        choices.map((choice) => choice.label),
+      );
+      const target = choices.find((choice) => choice.label === answer);
+      if (target) await ctx.navigateTree(target.id);
+    },
+  });
+
+  pi.on("session_start", async (_event, ctx) => {
     recorder = undefined;
     keptPlan = undefined;
     store.sweep();
+    if (ctx.mode === "tui") {
+      ctx.ui.onTerminalInput(
+        createEscapeClear({
+          isEscape: deps.isEscape,
+          now: deps.now,
+          isIdle: () => ctx.isIdle(),
+          getText: () => ctx.ui.getEditorText(),
+          clear: () => ctx.ui.setEditorText(""),
+        }),
+      );
+    }
   });
 
   pi.on("session_before_tree", async (event, ctx) => {
@@ -178,5 +232,10 @@ export default function (pi: ExtensionAPI): void {
     readdir: readdirSync,
     utimes: (path, timeMs) => utimesSync(path, timeMs / 1000, timeMs / 1000),
   };
-  createExtension(pi, { agentDir: getAgentDir(), fs, now: Date.now, isEscape: () => false });
+  createExtension(pi, {
+    agentDir: getAgentDir(),
+    fs,
+    now: Date.now,
+    isEscape: (data) => matchesKey(data, "escape"),
+  });
 }
