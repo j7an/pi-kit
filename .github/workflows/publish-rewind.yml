@@ -1,9 +1,9 @@
-name: Publish @pi-kit/permissions
+name: Publish @pi-kit/rewind
 
 on:
   push:
     tags:
-      - "permissions/v*.*.*"
+      - "rewind/v*.*.*"
 
 permissions:
   contents: read
@@ -16,8 +16,8 @@ jobs:
     uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
     with:
       tag: ${{ github.ref_name }}
-      package-name: "@pi-kit/permissions"
-      package-dir: packages/permissions
+      package-name: "@pi-kit/rewind"
+      package-dir: packages/rewind
       # Runs from the repository root: workspace install plus the whole gate.
       test-command: corepack enable && pnpm install --frozen-lockfile && pnpm check
       # pnpm pack seals workspace:/catalog: specifiers before publication.

@@ -5,7 +5,7 @@ updates:
     directory: "/"
     rebase-strategy: "disabled"
     cooldown:
-      default-days: 5
+      default-days: 7
     schedule:
       interval: "weekly"
       day: "monday"
@@ -18,22 +18,25 @@ updates:
       prefix: "deps"
 
   # Root devDependencies. The package itself has no runtime dependencies and pins
-  # both peers to `*`, so nothing else moves. Pi gets its own PR so a breaking Pi
-  # release cannot hold back the toolchain group; the weekly pi-window CI job
+  # supplied peers to `*`, so nothing else moves. Pi and pi-tui move together
+  # in their own PR so a breaking Pi release cannot hold back the toolchain group;
+  # the weekly pi-window CI job
   # covers the older Pi minors this pin moves past.
   - package-ecosystem: "npm"
     directory: "/"
     rebase-strategy: "disabled"
     cooldown:
-      default-days: 5
+      default-days: 7
     schedule:
       interval: "weekly"
       day: "monday"
       time: "18:00"
       timezone: "America/Los_Angeles"
     groups:
+      pi:
+        patterns: ["@earendil-works/*"]
       dev-toolchain:
         patterns: ["*"]
-        exclude-patterns: ["@earendil-works/pi-coding-agent"]
+        exclude-patterns: ["@earendil-works/*"]
     commit-message:
       prefix: "deps"

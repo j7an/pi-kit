@@ -1,4 +1,4 @@
-name: Tag Release
+name: Tag Release (rewind)
 
 on:
   workflow_dispatch:
@@ -25,11 +25,11 @@ jobs:
       bump: ${{ inputs.bump }}
       # Namespaced from the outset: each package gets its own tag stream and
       # its own bump config, so a release never touches another manifest.
-      tag-prefix: "permissions/v"
-      version-bump-config: ".version-bump.permissions.json"
+      tag-prefix: "rewind/v"
+      version-bump-config: ".version-bump.rewind.json"
       # Only this package's commits drive its bump and the empty-release check.
       # No root files: the package ships src/ and extensions/ unbuilt, so root
       # config never changes the tarball.
-      paths: "packages/permissions"
+      paths: "packages/rewind"
     secrets:
       RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}

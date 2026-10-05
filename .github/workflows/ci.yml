@@ -94,13 +94,15 @@ jobs:
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Pack and record the exact tarball
+      - name: Pack and validate each package with real Pi
         run: |
-          mkdir -p "$RUNNER_TEMP/pack"
-          pnpm --filter @pi-kit/permissions pack --json --pack-destination "$RUNNER_TEMP/pack" > "$RUNNER_TEMP/pack/pack.json"
-
-      - name: Validate the packed artifact with real Pi
-        run: sh scripts/assert-pack.sh "$RUNNER_TEMP/pack/pack.json"
+          for dir in packages/*/; do
+            name=$(node -p 'require("./" + process.argv[1]).name' "${dir}package.json")
+            pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
+            mkdir -p "$pack_dir"
+            pnpm --filter "$name" pack --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
+            sh scripts/assert-pack.sh "$pack_dir/pack.json"
+          done
 
   # One run measures every package and gates it twice: Node enforces a total
   # line floor, and the shared action enforces changed-line coverage from the
@@ -154,7 +156,7 @@ jobs:
       # A package's Pi factory (the default export) needs real Pi, so a PR that
       # changes only those lines fails; cover it with a stub `pi` if one does.
       - name: Check changed-line coverage
-        uses: j7an/shared-workflows/actions/coverage@f6fedd5f4a9e33ff83c893abcc608e402c1ee1b0 # v4.10.0
+        uses: j7an/shared-workflows/actions/coverage@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
         with:
           report-path: lcov.info
           diff-cover-path: ${{ env.DIFF_COVER_PATH }}
@@ -180,7 +182,7 @@ jobs:
 
       - name: Compute the Pi version window
         id: window
-        uses: j7an/shared-workflows/actions/release-window@f6fedd5f4a9e33ff83c893abcc608e402c1ee1b0 # v4.10.0
+        uses: j7an/shared-workflows/actions/release-window@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
         with:
           npm-package: "@earendil-works/pi-coding-agent"
           window-days: "30"
@@ -219,12 +221,14 @@ jobs:
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Pack and record the exact tarball
-        run: |
-          mkdir -p "$RUNNER_TEMP/pack"
-          pnpm --filter @pi-kit/permissions pack --json --pack-destination "$RUNNER_TEMP/pack" > "$RUNNER_TEMP/pack/pack.json"
-
-      - name: Validate the packed artifact with real Pi
+      - name: Pack and validate each package with real Pi
         env:
           PI_VERSION: ${{ matrix.pi }}
-        run: sh scripts/assert-pack.sh "$RUNNER_TEMP/pack/pack.json"
+        run: |
+          for dir in packages/*/; do
+            name=$(node -p 'require("./" + process.argv[1]).name' "${dir}package.json")
+            pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
+            mkdir -p "$pack_dir"
+            pnpm --filter "$name" pack --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
+            sh scripts/assert-pack.sh "$pack_dir/pack.json"
+          done

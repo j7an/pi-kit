@@ -23,7 +23,8 @@ Run from the repository root.
 - Keep runtime `dependencies` empty. One is admissible only if it is
   exact-pinned, in `bundleDependencies`, has no transitive dependencies and no
   lifecycle scripts, and is re-audited on every bump. Packages Pi supplies
-  (`@earendil-works/pi-coding-agent`, `typebox`) are optional `*` peers.
+  (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`)
+  are optional `*` peers; see Pi's `docs/packages.md`.
 - No shared core package until a second extension needs the same code.
 - Tests use `node:test` and `node:assert/strict` with top-level `test()` only:
   no subtests, no `t.mock`, no real filesystem or Pi install. Inject
@@ -34,8 +35,9 @@ Run from the repository root.
 - Commits follow Conventional Commits (`feat(permissions): …`, `fix(ci): …`).
   Tag-release infers the version bump from them.
 - Pin GitHub Actions to a full commit SHA with a `# vX.Y.Z` comment.
-- Pi is pinned once, in the root `package.json`. Dependabot bumps it in its
-  own PR, which auto-merges when CI passes; the weekly `pi-window` CI job
+- Pi is pinned once, in the root `package.json`. Dependabot bumps it together
+  with pi-tui in its own PR, which auto-merges when CI passes; the weekly
+  `pi-window` CI job
   covers older Pi minors. `autoInstallPeers: false` keeps that pin the only Pi
   in the workspace.
 
@@ -49,12 +51,14 @@ Releases are per package. A new `packages/<name>/` also needs:
   the bump
 - a `publish-<name>.yml` caller modelled on `publish-permissions.yml`
 - a `knip.json` workspace entry and a row in the root README package table
+- a `scripts/pack-probe-<name>.sh` probe, sourced by `scripts/assert-pack.sh`
+  to verify the installed package's behaviour with real Pi
 - runtime code under `src/` or `extensions/`, the only paths the `ci.yml`
   coverage job's `source-paths` globs gate; another layout must add its paths
   there, or its changes go ungated. A type-only module has no LCOV record, so
   it must go in the job's `exclude-paths`, or any change to it fails the gate
 
-`scripts/assert-package.mjs`, `scripts/assert-pack.sh`, and the `ci.yml`
-artifact job hardcode `@pi-kit/permissions`; parameterise them rather than
-copying. The first npm publish is manual; configure npm trusted publishing
-afterwards.
+The `ci.yml` artifact job validates every package through
+`scripts/assert-pack.sh`, which runs the shared `scripts/assert-package.mjs`
+shape checks and the package's probe. Reuse these parameterised scripts.
+The first npm publish is manual; configure npm trusted publishing afterwards.

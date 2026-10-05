@@ -1,0 +1,55 @@
+{
+  "name": "@pi-kit/rewind",
+  "version": "0.1.0",
+  "description": "Claude Code-style rewind of code and conversation for the Pi coding agent. Zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "rewind",
+    "checkpoint",
+    "undo"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/j7an/pi-kit.git",
+    "directory": "packages/rewind"
+  },
+  "homepage": "https://github.com/j7an/pi-kit/tree/main/packages/rewind#readme",
+  "bugs": {
+    "url": "https://github.com/j7an/pi-kit/issues"
+  }
+}
