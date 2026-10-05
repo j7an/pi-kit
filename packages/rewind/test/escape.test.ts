@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { matchesKey } from "@earendil-works/pi-tui";
 import { createEscapeClear, WINDOW_MS } from "../src/escape.ts";
 
-function fixture(text = "draft", idle = true) {
+function fixture(
+  text = "draft",
+  idle = true,
+  isEscape: (data: string) => boolean = (data) => data === "escape",
+) {
   let time = 0;
   let clears = 0;
   const input = createEscapeClear({
-    isEscape: (data) => data === "escape",
+    isEscape,
     now: () => time,
     isIdle: () => idle,
     getText: () => text,
@@ -80,4 +85,28 @@ test("a third escape after a clear does not clear again", () => {
   f.tick(100);
   assert.equal(f.input("escape"), undefined);
   assert.equal(f.clears(), 1);
+});
+
+for (const [kind, event] of [
+  ["release", "\x1b[27;1:3u"],
+  ["repeat", "\x1b[27;1:2u"],
+] as const) {
+  test(`Kitty Escape ${kind} does not count as a second press`, () => {
+    const f = fixture("draft", true, (data) => matchesKey(data, "escape"));
+    assert.equal(f.input("\x1b[27u"), undefined);
+    f.tick(90);
+    assert.equal(f.input(event), undefined);
+    assert.equal(f.clears(), 0);
+    f.tick(90);
+    assert.deepEqual(f.input("\x1b[27u"), { consume: true });
+    assert.equal(f.clears(), 1);
+  });
+}
+
+test("Kitty Escape release without a press does not arm clearing", () => {
+  const f = fixture("draft", true, (data) => matchesKey(data, "escape"));
+  assert.equal(f.input("\x1b[27;1:3u"), undefined);
+  f.tick(90);
+  assert.equal(f.input("\x1b[27u"), undefined);
+  assert.equal(f.clears(), 0);
 });

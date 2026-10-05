@@ -172,10 +172,13 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
 
   pi.on("session_before_fork", async (event, ctx) => {
     if (!ctx.hasUI) return;
+    const entry = ctx.sessionManager.getEntry(event.entryId);
+    // A user prompt has no file mutation; include it to resolve its captured boundary.
+    // Pi still controls the native before/at conversation position.
     const targetId =
-      event.position === "at"
+      event.position === "at" || (entry?.type === "message" && entry.message.role === "user")
         ? event.entryId
-        : (ctx.sessionManager.getEntry(event.entryId)?.parentId ?? null);
+        : (entry?.parentId ?? null);
     const steps = plan(ctx, ctx.sessionManager.getLeafId(), targetId);
     if (steps.length === 0) return;
     if (!ctx.isIdle()) {

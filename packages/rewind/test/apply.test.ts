@@ -271,3 +271,72 @@ test("restoring preserves an unrelated timestamp-named temp file", async () => {
   assert.deepEqual(fs.readFile(path), restored);
   assert.deepEqual(fs.readFile(unrelated), sentinel);
 });
+
+test("a partial restore write removes its temp and preserves the original", async () => {
+  const { fs, target, deps } = setup();
+  const writeFile = fs.writeFile;
+  fs.writeFile = (temp, bytes, mode) => {
+    writeFile(temp, bytes.slice(0, 1), mode);
+    throw new Error("EFBIG partial write");
+  };
+  assert.deepEqual(await applyPlan([step(target)], deps), {
+    restored: [],
+    skipped: [{ path, reason: "EFBIG partial write" }],
+  });
+  assert.deepEqual(fs.readFile(path), old);
+  assert.deepEqual(
+    [...fs.files.keys()].filter((file) => file.startsWith("/repo/")),
+    [path],
+  );
+});
+
+test("a failed rename removes the owned temp even for EEXIST", async () => {
+  const { fs, target, deps } = setup();
+  fs.rename = () => {
+    throw Object.assign(new Error("EEXIST rename"), { code: "EEXIST" });
+  };
+  assert.deepEqual(await applyPlan([step(target)], deps), {
+    restored: [],
+    skipped: [{ path, reason: "EEXIST rename" }],
+  });
+  assert.deepEqual(fs.readFile(path), old);
+  assert.deepEqual(
+    [...fs.files.keys()].filter((file) => file.startsWith("/repo/")),
+    [path],
+  );
+});
+
+test("failed exclusive creation preserves the unrelated existing temp", async () => {
+  const { fs, target, deps } = setup();
+  const writeFile = fs.writeFile;
+  const sentinel = Uint8Array.of(7, 8, 9);
+  let existing = "";
+  fs.writeFile = (temp, _bytes, mode) => {
+    existing = temp;
+    writeFile(temp, sentinel, mode);
+    throw Object.assign(new Error("EEXIST exclusive creation"), { code: "EEXIST" });
+  };
+  assert.deepEqual(await applyPlan([step(target)], deps), {
+    restored: [],
+    skipped: [{ path, reason: "EEXIST exclusive creation" }],
+  });
+  assert.deepEqual(fs.readFile(path), old);
+  assert.deepEqual(fs.readFile(existing), sentinel);
+});
+
+test("temp cleanup failure preserves the original restore error", async () => {
+  const { fs, target, deps } = setup();
+  const writeFile = fs.writeFile;
+  fs.writeFile = (temp, bytes, mode) => {
+    writeFile(temp, bytes.slice(0, 1), mode);
+    throw new Error("original write failure");
+  };
+  fs.unlink = () => {
+    throw new Error("cleanup failure");
+  };
+  assert.deepEqual(await applyPlan([step(target)], deps), {
+    restored: [],
+    skipped: [{ path, reason: "original write failure" }],
+  });
+  assert.deepEqual(fs.readFile(path), old);
+});

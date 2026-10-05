@@ -1,3 +1,5 @@
+import { isKeyRelease, isKeyRepeat } from "@earendil-works/pi-tui";
+
 export const WINDOW_MS = 500;
 
 export function createEscapeClear(deps: {
@@ -9,7 +11,14 @@ export function createEscapeClear(deps: {
 }): (data: string) => { consume: true } | undefined {
   let lastEscape: number | undefined;
   return (data) => {
-    if (!deps.isEscape(data) || !deps.isIdle() || deps.getText().trim() === "") return;
+    if (
+      !deps.isEscape(data) ||
+      isKeyRelease(data) ||
+      isKeyRepeat(data) ||
+      !deps.isIdle() ||
+      deps.getText().trim() === ""
+    )
+      return;
     const now = deps.now();
     if (lastEscape !== undefined && now - lastEscape <= WINDOW_MS) {
       deps.clear();

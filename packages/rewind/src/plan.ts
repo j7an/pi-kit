@@ -1,7 +1,14 @@
 import { isAbsolute } from "node:path";
 import { RECORD_TYPE, type RewindRecord } from "./record.ts";
 
-export type EntryLike = { id: string; type: string; customType?: string; data?: unknown };
+export type EntryLike = {
+  id: string;
+  parentId?: string | null;
+  type: string;
+  message?: { role: string };
+  customType?: string;
+  data?: unknown;
+};
 export type PlanStep = { path: string; target: string | null; expected: string | null };
 
 function isState(value: unknown): value is string | null {
@@ -41,9 +48,33 @@ export function planRestore(
   current: (path: string) => string | null,
 ): PlanStep[] {
   const earliest = new Map<string, string | null>();
+  const targetEntry = targetBranch.at(-1);
+  const targetPromptId =
+    targetEntry?.type === "message" && targetEntry.message?.role === "user"
+      ? targetEntry.id
+      : undefined;
+  const promptIds = new Map<string, string>();
+  const promptStates = new Map<string, string | null>();
   for (const entry of allEntries) {
+    // Entries are append-ordered: inherit the nearest user prompt from the parent.
+    // A later user prompt starts its own response, including on abandoned branches.
+    const promptId =
+      entry.type === "message" && entry.message?.role === "user"
+        ? entry.id
+        : entry.parentId
+          ? promptIds.get(entry.parentId)
+          : undefined;
+    if (promptId !== undefined) promptIds.set(entry.id, promptId);
     const data = record(entry);
     if (data && !earliest.has(data.path)) earliest.set(data.path, data.before);
+    if (
+      data &&
+      targetPromptId !== undefined &&
+      promptId === targetPromptId &&
+      !promptStates.has(data.path)
+    ) {
+      promptStates.set(data.path, data.before);
+    }
   }
 
   let shared = 0;
@@ -60,6 +91,7 @@ export function planRestore(
   const targetStates = new Map(trunk);
   updateStates(expectedStates, oldBranch.slice(shared));
   updateStates(targetStates, targetBranch.slice(shared));
+  for (const [path, before] of promptStates) targetStates.set(path, before);
 
   const steps: PlanStep[] = [];
   for (const path of earliest.keys()) {

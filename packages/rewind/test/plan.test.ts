@@ -22,6 +22,85 @@ function entries(old: EntryLike[], target: EntryLike[]): EntryLike[] {
   return [...old, ...target.filter((entry) => !old.some((other) => other.id === entry.id))];
 }
 
+function prompt(id: string, parentId: string | null) {
+  return { id, parentId, type: "message", message: { role: "user" } };
+}
+
+test("a prompt restores its captured before instead of an older trunk after", () => {
+  const all = [
+    prompt("u1", null),
+    { ...rec("r1", a, A, B), parentId: "u1" },
+    prompt("u2", "r1"),
+    { ...rec("r2", a, X, C), parentId: "u2" },
+  ];
+  assert.deepEqual(
+    planRestore(all, all, all.slice(0, 3), () => C),
+    [{ path: a, target: X, expected: C }],
+  );
+});
+
+test("a prompt uses its captured before even when its response is abandoned", () => {
+  const all = [
+    prompt("u1", null),
+    { ...rec("r1", a, A, B), parentId: "u1" },
+    prompt("u2", "r1"),
+    { ...rec("r2", a, X, C), parentId: "u2" },
+  ];
+  assert.deepEqual(
+    planRestore(all, all.slice(0, 2), all.slice(0, 3), () => C),
+    [{ path: a, target: X, expected: B }],
+  );
+});
+
+test("a later prompt's before does not replace an earlier prompt's boundary", () => {
+  const all = [
+    prompt("u1", null),
+    { ...rec("r1", a, A, B), parentId: "u1" },
+    prompt("u2", "r1"),
+    { id: "a2", parentId: "u2", type: "message", message: { role: "assistant" } },
+    prompt("u3", "a2"),
+    { ...rec("r3", a, X, C), parentId: "u3" },
+  ];
+  assert.deepEqual(
+    planRestore(all, all, all.slice(0, 3), () => C),
+    [{ path: a, target: B, expected: C }],
+  );
+});
+
+test("prompt boundaries follow ancestry through response entries and ignore sibling records", () => {
+  const trunk = [prompt("u1", null), { ...rec("r1", a, A, B), parentId: "u1" }];
+  const u2 = prompt("u2", "r1");
+  const target = [...trunk, u2];
+  const all = [
+    ...trunk,
+    prompt("sibling", "r1"),
+    { ...rec("sibling-record", a, A, C), parentId: "sibling" },
+    u2,
+    { id: "assistant", parentId: "u2", type: "message", message: { role: "assistant" } },
+    { id: "tool-result", parentId: "assistant", type: "message", message: { role: "toolResult" } },
+    { ...rec("r2", a, X, C), parentId: "tool-result" },
+  ];
+  assert.deepEqual(
+    planRestore(all, trunk, target, () => C),
+    [{ path: a, target: X, expected: B }],
+  );
+});
+
+test("a prompt's first valid before remains null despite stale parallel captures", () => {
+  const all = [
+    prompt("u1", null),
+    { ...rec("r1", a, A, B), parentId: "u1" },
+    prompt("u2", "r1"),
+    { ...rec("invalid", a, "bad", C), parentId: "u2" },
+    { ...rec("r2", a, null, C), parentId: "invalid" },
+    { ...rec("r3", a, X, C), parentId: "r2" },
+  ];
+  assert.deepEqual(
+    planRestore(all, all, all.slice(0, 3), () => C),
+    [{ path: a, target: null, expected: C }],
+  );
+});
+
 test("going back restores the first before after the ancestor", () => {
   const old = [msg("m1"), rec("r1", a, A, B), msg("m2"), rec("r2", a, B, C)];
   const target = old.slice(0, 1);

@@ -60,8 +60,22 @@ export async function applyPlan(
         }
         deps.fs.mkdir(dirname(step.path), 0o755);
         const temp = `${step.path}.pi-kit-rewind-${deps.now()}-${randomUUID()}`;
-        deps.fs.writeFile(temp, bytes, stat?.mode ?? 0o644);
-        deps.fs.rename(temp, step.path);
+        let written = false;
+        try {
+          deps.fs.writeFile(temp, bytes, stat?.mode ?? 0o644);
+          written = true;
+          deps.fs.rename(temp, step.path);
+        } catch (error) {
+          // An exclusive-create failure belongs to another file, not this restore.
+          if (written || (error as NodeJS.ErrnoException)?.code !== "EEXIST") {
+            try {
+              deps.fs.unlink(temp);
+            } catch {
+              // Preserve the original failure if cleanup cannot remove the temp.
+            }
+          }
+          throw error;
+        }
       }
       result.restored.push(step.path);
     } catch (error) {

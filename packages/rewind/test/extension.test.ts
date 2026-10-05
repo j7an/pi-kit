@@ -375,6 +375,18 @@ test("fork at a record includes its after state", async () => {
   assert.equal(f.ctx.ui.select.calls.length, 0);
 });
 
+test("fork before a record uses its parent's file state", async () => {
+  const f = history();
+  f.record("r2", B, C);
+  f.fs.writeFile(PATH, C, 0o644);
+  f.choose(extension.FORK_RESTORE);
+  assert.equal(
+    await f.fire("session_before_fork", { entryId: "r2", position: "before" }),
+    undefined,
+  );
+  assert.deepEqual(contents(f), B);
+});
+
 test("fork before the first prompt restores every file's first before state", async () => {
   const f = history();
   f.choose(extension.FORK_RESTORE);
@@ -432,6 +444,57 @@ test("fork without UI proceeds without a menu or writes", async () => {
 });
 
 for (const resumed of [false, true]) {
+  for (const abandoned of [false, true]) {
+    for (const trigger of ["tree", "fork before", "fork at"] as const) {
+      test(`captured manual bytes restore at their prompt${abandoned ? " from an abandoned response" : ""}${resumed ? " after resume" : ""}${trigger === "tree" ? "" : ` on ${trigger}`}`, async () => {
+        const f = fixture();
+        const manual = Uint8Array.of(0, 77, 255);
+        const final = Uint8Array.of(0, 78, 254);
+        f.prompt("u1");
+        f.fs.writeFile(PATH, A, 0o644);
+        await f.fire("tool_call", { toolName: "edit", toolCallId: "t1", input: { path: "a" } });
+        f.fs.writeFile(PATH, B, 0o644);
+        await f.fire("tool_result", { toolCallId: "t1" });
+        f.fs.writeFile(PATH, manual, 0o644);
+        f.prompt("u2");
+        await f.fire("tool_call", { toolName: "edit", toolCallId: "t2", input: { path: "a" } });
+        f.fs.writeFile(PATH, final, 0o644);
+        await f.fire("tool_result", { toolCallId: "t2" });
+        assert.deepEqual(f.entries[3]?.data, {
+          path: PATH,
+          before: sha256(manual),
+          after: sha256(final),
+        });
+        if (abandoned) {
+          f.enableNavigation();
+          f.choose(extension.RESTORE_CONVERSATION);
+          await f.ctx.navigateTree("u2");
+          assert.equal(f.ctx.sessionManager.getLeafId(), f.entries[1]?.id);
+          assert.deepEqual(contents(f), final);
+        }
+        if (resumed) f.resume();
+        if (trigger === "tree") {
+          f.choose(extension.RESTORE_CODE);
+          assert.deepEqual(await f.tree("u2"), { cancel: true });
+        } else {
+          f.choose(extension.FORK_RESTORE);
+          assert.equal(
+            await f.fire("session_before_fork", {
+              entryId: "u2",
+              position: trigger === "fork before" ? "before" : "at",
+            }),
+            undefined,
+          );
+        }
+        assert.deepEqual(contents(f), manual);
+        assert.deepEqual(
+          f.ctx.ui.confirm.calls,
+          abandoned ? [["Overwrite files changed outside the agent?", PATH]] : [],
+        );
+      });
+    }
+  }
+
   test(`code-only then a later prompt restores again${resumed ? " after resume" : ""}`, async () => {
     const f = history();
     f.record("r2", B, C);
