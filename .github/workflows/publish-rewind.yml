@@ -1,0 +1,26 @@
+name: Publish @pi-kit/rewind
+
+on:
+  push:
+    tags:
+      - "rewind/v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    permissions:
+      contents: write # GitHub Release, created by the reusable workflow
+      id-token: write # npm trusted publishing; needed on the caller too
+    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@f6fedd5f4a9e33ff83c893abcc608e402c1ee1b0 # v4.10.0
+    with:
+      tag: ${{ github.ref_name }}
+      package-name: "@pi-kit/rewind"
+      package-dir: packages/rewind
+      # Runs from the repository root: workspace install plus the whole gate.
+      test-command: corepack enable && pnpm install --frozen-lockfile && pnpm check
+      # pnpm pack seals workspace:/catalog: specifiers before publication.
+      pack-command: pnpm pack --json
+      # Post-pack, pre-upload gate against the exact bytes being published.
+      pack-contents-script: scripts/assert-pack.sh
