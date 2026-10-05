@@ -20,6 +20,7 @@ shared library until a second extension demonstrates a genuine common need.
 | Package | What it does |
 |---|---|
 | [`@pi-kit/permissions`](packages/permissions) | Allow / ask / deny guardrail over Pi's built-in tools |
+| [`@pi-kit/rewind`](packages/rewind) | Rewind code and conversation to an earlier prompt |
 
 ## Development
 
