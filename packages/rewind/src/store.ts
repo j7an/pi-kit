@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 export type Stat = {
@@ -45,7 +45,7 @@ export function createStore(agentDir: string, fs: Fs, now: () => number): Store 
       if (fs.lstat(path)) {
         fs.utimes(path, now());
       } else {
-        const temp = `${path}.tmp-${now()}`;
+        const temp = `${path}.tmp-${randomUUID()}`;
         fs.writeFile(temp, bytes, 0o600);
         fs.rename(temp, path);
       }

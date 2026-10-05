@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { blobRoot, createStore, MAX_AGE_MS, sha256 } from "../src/store.ts";
 import { fakeFs } from "./fake-fs.ts";
@@ -48,9 +48,11 @@ test("put writes once and refreshes mtime on reuse", () => {
 test("put writes via a temp file then rename", () => {
   const fs = fakeFs();
   const events: string[] = [];
+  let temp = "";
   const writeFile = fs.writeFile;
   const rename = fs.rename;
   fs.writeFile = (path, data, mode) => {
+    temp = path;
     events.push(`write:${path}`);
     writeFile(path, data, mode);
   };
@@ -62,7 +64,9 @@ test("put writes via a temp file then rename", () => {
   };
   const sha = createStore(agentDir, fs, () => 100).put(bytes);
   const final = join(root, sha);
-  assert.deepEqual(events, [`write:${final}.tmp-100`, `rename:${final}.tmp-100:${final}`]);
+  assert.notEqual(temp, final);
+  assert.equal(dirname(temp), root);
+  assert.deepEqual(events, [`write:${temp}`, `rename:${temp}:${final}`]);
   assert.equal(fs.files.size, 1);
 });
 
@@ -110,4 +114,24 @@ test("sweep ignores directory listing errors", () => {
     throw new Error("Cannot list");
   };
   assert.doesNotThrow(() => createStore(agentDir, fs, () => 100).sweep());
+});
+
+test("interleaved puts of identical bytes at the same time both complete", () => {
+  const fs = fakeFs();
+  const outer = createStore(agentDir, fs, () => 1000);
+  const inner = createStore(agentDir, fs, () => 1000);
+  const writeFile = fs.writeFile;
+  let interleaved = false;
+  let innerSha: string | undefined;
+  fs.writeFile = (path, data, mode) => {
+    writeFile(path, data, mode);
+    if (!interleaved) {
+      interleaved = true;
+      innerSha = inner.put(bytes);
+    }
+  };
+  const outerSha = outer.put(bytes);
+  assert.equal(innerSha, outerSha);
+  assert.deepEqual(outer.get(outerSha), bytes);
+  assert.equal(fs.files.size, 1);
 });
