@@ -187,6 +187,8 @@ importers:
 
   packages/permissions: {}
 
+  packages/rewind: {}
+
 packages:
 
   '@anthropic-ai/sdk@0.124.0':

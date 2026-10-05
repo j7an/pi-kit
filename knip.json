@@ -8,6 +8,10 @@
     "packages/permissions": {
       "entry": ["extensions/index.ts", "test/**/*.test.ts"],
       "project": ["src/**/*.ts", "extensions/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/rewind": {
+      "entry": ["extensions/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "extensions/**/*.ts", "test/**/*.ts"]
     }
   }
 }
