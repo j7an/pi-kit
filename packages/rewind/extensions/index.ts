@@ -117,7 +117,13 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
         choices.map((choice) => choice.label),
       );
       const target = choices.find((choice) => choice.label === answer);
-      if (target) await ctx.navigateTree(target.id);
+      if (target) {
+        if (target.id === ctx.sessionManager.getLeafId()) {
+          // Native same-leaf navigation skips hooks; custom metadata adds no context.
+          pi.appendEntry("pi-kit-rewind-navigation", {});
+        }
+        await ctx.navigateTree(target.id);
+      }
     },
   });
 

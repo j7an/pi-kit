@@ -58,6 +58,8 @@ remain. Each restore reports restored files and any skipped paths.
   see records on the parent session's abandoned branches.
 - After restoring code only or keeping code while moving the conversation,
   a later restore can ask about conflicts caused by rewind itself.
+- Pi's `/tree` does nothing when selecting the current leaf, so it cannot
+  offer a restore there. Use `/rewind` to revisit the current prompt.
 - Selecting an internal rewind record in `/tree`'s all filter can expose an
   intermediate state from parallel edits; select a prompt for a stable point.
 

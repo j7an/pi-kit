@@ -65,7 +65,12 @@ export function planRestore(
   for (const path of earliest.keys()) {
     const target = targetStates.get(path) ?? null;
     const expected = expectedStates.get(path) ?? null;
-    if (target !== current(path)) steps.push({ path, target, expected });
+    try {
+      if (target === current(path)) continue;
+    } catch {
+      // Keep unreadable paths so applyPlan can report their failure per file.
+    }
+    steps.push({ path, target, expected });
   }
   return steps;
 }

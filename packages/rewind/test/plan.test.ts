@@ -104,6 +104,20 @@ test("target equal to disk is dropped", () => {
   );
 });
 
+test("a current hash failure retains its step and still plans readable paths", () => {
+  const old = [msg("u1"), rec("r1", a, null, B), rec("r2", b, A, C)];
+  assert.deepEqual(
+    planRestore(old, old, old.slice(0, 1), (path) => {
+      if (path === a) throw new Error("EACCES");
+      return C;
+    }),
+    [
+      { path: a, target: null, expected: B },
+      { path: b, target: A, expected: C },
+    ],
+  );
+});
+
 test("record only on an abandoned branch is still planned", () => {
   const all = [msg("u1"), msg("a1"), msg("u2"), rec("r1", a, A, B), msg("a2")];
   assert.deepEqual(

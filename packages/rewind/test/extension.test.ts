@@ -34,6 +34,10 @@ function fixture() {
   const handlers = new Map<string, Handler>();
   const commands = new Map<string, { description: string; handler: Handler }>();
   let choice: string | undefined;
+  let promptChoice: string | undefined;
+  let nativeNavigation = false;
+  let editorText = "draft";
+  const navigationErrors: unknown[] = [];
   let approved = true;
   const api = {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
@@ -68,14 +72,37 @@ function fixture() {
     mode: "tui",
     isIdle: () => true,
     sessionManager,
-    navigateTree: recorder(async () => undefined),
+    // Model the verified native boundary: same-leaf no-op, runner catches hook
+    // errors, user targets move to their parent, and only success restores text.
+    navigateTree: recorder(async (targetId) => {
+      if (!nativeNavigation || targetId === leaf) return;
+      const target = sessionManager.getEntry(String(targetId));
+      assert.ok(target);
+      let result: unknown;
+      try {
+        result = await tree(target.id);
+      } catch (error) {
+        navigationErrors.push(error);
+      }
+      if (result && typeof result === "object" && "cancel" in result && result.cancel) return;
+      leaf = target.parentId;
+      await fire("session_tree");
+      if (!editorText.trim()) {
+        const message = (target as Entry & { message: { content: string } }).message;
+        ctx.ui.setEditorText(message.content);
+      }
+    }),
     ui: {
-      select: recorder(async () => choice),
+      select: recorder(async (title) =>
+        nativeNavigation && title === "Rewind" ? promptChoice : choice,
+      ),
       confirm: recorder(async () => approved),
       notify: recorder(() => undefined),
       onTerminalInput: recorder(() => () => undefined),
-      getEditorText: () => "draft",
-      setEditorText: recorder(() => undefined),
+      getEditorText: () => editorText,
+      setEditorText: recorder((text) => {
+        editorText = String(text);
+      }),
     },
   };
   function resume() {
@@ -97,12 +124,12 @@ function fixture() {
   function prompt(id: string, content: unknown = id) {
     return add({ type: "message", message: { role: "user", content } } as never, id);
   }
-  function record(id: string, before = A, after = B) {
+  function record(id: string, before = A, after = B, path = PATH) {
     return add(
       {
         type: "custom",
         customType: RECORD_TYPE,
-        data: { path: PATH, before: sha256(before), after: sha256(after) },
+        data: { path, before: sha256(before), after: sha256(after) },
       },
       id,
     );
@@ -129,6 +156,14 @@ function fixture() {
     record,
     tree,
     resume,
+    navigationErrors,
+    enableNavigation: () => {
+      nativeNavigation = true;
+      editorText = "";
+    },
+    choosePrompt: (value: string) => {
+      promptChoice = value;
+    },
     choose: (value: string | undefined) => {
       choice = value;
     },
@@ -266,6 +301,35 @@ test("code-only restores immediately, cancels navigation and reports the result"
   assert.deepEqual(f.ctx.ui.notify.calls, [["Restored 1 files", "info"]]);
 });
 
+for (const answer of [extension.RESTORE_CODE, extension.RESTORE_BOTH]) {
+  test(`a blocked disk read reports its path and restores readable files: ${answer}`, async () => {
+    const f = fixture();
+    const readable = "/repo/readable";
+    f.prompt("u1");
+    f.record("blocked");
+    f.record("readable", A, B, readable);
+    f.prompt("u2");
+    f.fs.writeFile(readable, B, 0o644);
+    const read = f.fs.readFile;
+    f.fs.readFile = (path) => {
+      if (path === PATH) throw new Error("EACCES");
+      return read(path);
+    };
+    f.enableNavigation();
+    f.choosePrompt("1. u1");
+    f.choose(answer);
+    await rewind(f);
+    assert.deepEqual(f.navigationErrors, []);
+    assert.deepEqual(f.fs.readFile(readable), A);
+    assert.deepEqual(read(PATH), B);
+    assert.deepEqual(f.ctx.ui.notify.calls, [
+      ["Restored 1 files, skipped 1: /repo/a (EACCES)", "info"],
+    ]);
+    assert.equal(f.ctx.ui.select.calls[1]?.[0], "Rewind: 2 files changed since this point");
+    assert.equal(f.ctx.sessionManager.getLeafId(), answer === extension.RESTORE_CODE ? "u2" : null);
+  });
+}
+
 for (const answer of ["Cancel", undefined]) {
   test(`tree ${answer ?? "Escape"} cancels without writing`, async () => {
     const f = history();
@@ -390,13 +454,24 @@ for (const resumed of [false, true]) {
     f.prompt("u1");
     f.prompt("u2");
     f.record("r1");
+    f.enableNavigation();
+    f.choosePrompt("2. u2");
     f.choose(extension.RESTORE_CONVERSATION);
-    await f.tree("u2");
-    f.moveLeaf("u1");
+    await rewind(f);
+    assert.equal(f.ctx.sessionManager.getLeafId(), "u1");
+    assert.deepEqual(contents(f), B);
+    assert.equal(f.entries.length, 3, "other selections must not append a marker");
     if (resumed) f.resume();
+    const messages = f.ctx.sessionManager.getBranch().filter((entry) => entry.type === "message");
+    f.choosePrompt("1. u1");
     f.choose(extension.RESTORE_CODE);
-    await f.tree("u1");
+    await rewind(f);
     assert.deepEqual(contents(f), A);
+    assert.deepEqual(
+      f.ctx.sessionManager.getBranch().filter((entry) => entry.type === "message"),
+      messages,
+    );
+    assert.equal(f.entries.filter((entry) => entry.customType === RECORD_TYPE).length, 1);
     assert.deepEqual(f.ctx.ui.confirm.calls[0], [
       "Overwrite files changed outside the agent?",
       PATH,
@@ -411,6 +486,42 @@ test("fresh extension restores persisted entries without tool calls", async () =
   await f.tree("u1");
   assert.deepEqual(contents(f), A);
 });
+
+test("/rewind restores both code and the editor for a current root prompt", async () => {
+  const f = fixture();
+  f.prompt("u1", "first prompt");
+  f.record("r1");
+  f.moveLeaf("u1");
+  f.enableNavigation();
+  f.choosePrompt("1. first prompt");
+  f.choose(extension.RESTORE_BOTH);
+  await rewind(f);
+  assert.deepEqual(contents(f), A);
+  assert.equal(f.ctx.sessionManager.getLeafId(), null);
+  assert.equal(f.ctx.ui.getEditorText(), "first prompt");
+  assert.equal(f.entries.filter((entry) => entry.customType === RECORD_TYPE).length, 1);
+});
+
+for (const answer of [extension.CANCEL, undefined]) {
+  test(`/rewind current prompt ${answer ?? "Escape"} preserves conversation and disk`, async () => {
+    const f = fixture();
+    f.prompt("u1");
+    f.record("r1");
+    f.moveLeaf("u1");
+    f.enableNavigation();
+    const messages = f.ctx.sessionManager.getBranch().filter((entry) => entry.type === "message");
+    f.choosePrompt("1. u1");
+    f.choose(answer);
+    await rewind(f);
+    assert.deepEqual(contents(f), B);
+    assert.deepEqual(
+      f.ctx.sessionManager.getBranch().filter((entry) => entry.type === "message"),
+      messages,
+    );
+    assert.equal(f.ctx.ui.getEditorText(), "");
+    assert.equal(f.ctx.ui.select.calls.length, 2, "current prompt must enter the rewind menu");
+  });
+}
 
 test("declining a mixed-mode conflict keeps disk and reports the skip", async () => {
   const f = history();
