@@ -27,9 +27,8 @@ jobs:
       # its own bump config, so a release never touches another manifest.
       tag-prefix: "permissions/v"
       version-bump-config: ".version-bump.permissions.json"
-      # Only this package's commits drive its bump and the empty-release check.
-      # No root files: the package ships src/ and extensions/ unbuilt, so root
-      # config never changes the tarball.
-      paths: "packages/permissions"
+      # Only this package's and shared's commits drive its bump. Shared's
+      # release commit alone makes it releasable, so publishing shared can re-release it.
+      paths: "packages/permissions packages/shared"
     secrets:
       RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}

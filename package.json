@@ -10,7 +10,7 @@
     "lint": "biome ci .",
     "format": "biome check --write .",
     "knip": "knip",
-    "test": "sh scripts/check-package.sh && node --test",
+    "test": "sh scripts/check-package.sh && sh scripts/check-rerelease.sh && node --test",
     "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test"
   },
   "devDependencies": {
