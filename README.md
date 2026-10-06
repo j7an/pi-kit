@@ -21,6 +21,7 @@ shared library until a second extension demonstrates a genuine common need.
 |---|---|
 | [`@pi-kit/permissions`](packages/permissions) | Allow / ask / deny guardrail over Pi's built-in tools |
 | [`@pi-kit/rewind`](packages/rewind) | Rewind code and conversation to an earlier prompt |
+| [`@pi-kit/shared`](packages/shared) | Code shared by the extensions above; installed with them, not on its own |
 
 ## Development
 
