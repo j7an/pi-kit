@@ -1,5 +1,5 @@
+import { resolvePath } from "@pi-kit/shared/path";
 import type { PermissionRequest } from "./decide.ts";
-import { resolvePath } from "./match/path.ts";
 
 /** Pi built-in tools carrying a `path` input. */
 const PATH_TOOLS = new Set(["read", "write", "edit", "ls", "grep", "find"]);

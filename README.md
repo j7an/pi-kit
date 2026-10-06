@@ -9,11 +9,12 @@ Pi packages run with full system access. Installing a third-party extension
 means executing arbitrary code you have not read. Auditing a 16,000-line
 package is not realistic; writing a small one you understand is. Every
 package here is small enough to re-read in one sitting, ships raw TypeScript
-with no build step, and has no runtime dependencies unless one is exact-pinned,
+with no build step, and has no runtime dependencies except pi-kit's own
+`@pi-kit/shared`, pinned exactly, unless a third-party one is exact-pinned,
 bundled, zero-transitive, script-free, and re-audited on every bump.
 
-**Extensions define core; core does not define extensions.** There is no
-shared library until a second extension demonstrates a genuine common need.
+**Extensions define core; core does not define extensions.** Code joins the
+shared library, `@pi-kit/shared`, only when a second extension needs it.
 
 ## Packages
 
@@ -21,6 +22,7 @@ shared library until a second extension demonstrates a genuine common need.
 |---|---|
 | [`@pi-kit/permissions`](packages/permissions) | Allow / ask / deny guardrail over Pi's built-in tools |
 | [`@pi-kit/rewind`](packages/rewind) | Rewind code and conversation to an earlier prompt |
+| [`@pi-kit/shared`](packages/shared) | Code shared by the extensions above; installed with them, not on its own |
 
 ## Development
 

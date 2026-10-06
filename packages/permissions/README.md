@@ -1,7 +1,7 @@
 # @pi-kit/permissions
 
-An allow / ask / deny guardrail for the Pi coding agent's built-in tools. Zero
-runtime dependencies, no build step, small enough to read before you install
+An allow / ask / deny guardrail for the Pi coding agent's built-in tools. No
+third-party runtime dependencies, no build step, small enough to read before you install
 it. It guards against agent mistakes; it is not a sandbox (see
 [Limitations](#limitations)).
 

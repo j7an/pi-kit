@@ -1,0 +1,8 @@
+{
+  "files": [
+    {
+      "path": "packages/shared/package.json",
+      "field": "version"
+    }
+  ]
+}

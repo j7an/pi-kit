@@ -1,0 +1,36 @@
+{
+  "name": "@pi-kit/shared",
+  "version": "0.1.0",
+  "description": "Code shared by pi-kit's Pi extensions. Not an extension; installed with them. Zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "pi-kit"
+  ],
+  "exports": {
+    "./path": "./src/path.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {},
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/j7an/pi-kit.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/j7an/pi-kit/tree/main/packages/shared#readme",
+  "bugs": {
+    "url": "https://github.com/j7an/pi-kit/issues"
+  }
+}

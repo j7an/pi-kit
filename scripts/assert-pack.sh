@@ -56,11 +56,17 @@ if ! npm install --no-audit --no-fund --save-exact "@earendil-works/pi-coding-ag
   cat "$work/npm.log" >&2
   exit 1
 fi
-if ! npm install --no-audit --no-fund "$tarball" > "$work/npm.log" 2>&1; then
+# Unset at publish, so npm resolves the pinned shared from the registry, as users get it.
+set -- "$tarball"
+if [ -n "${SHARED_TARBALL:-}" ] && [ "$name" != "@pi-kit/shared" ]; then
+  set -- "$@" "$SHARED_TARBALL"
+fi
+if ! npm install --no-audit --no-fund "$@" > "$work/npm.log" 2>&1; then
   cat "$work/npm.log" >&2
   exit 1
 fi
 
 node "$repo_root/scripts/assert-package.mjs" "$work/consumer/node_modules/$name" "$repo_root/packages/$short"
 
+# shellcheck source=/dev/null # Package-specific probe selected and checked above.
 . "$repo_root/scripts/pack-probe-$short.sh"

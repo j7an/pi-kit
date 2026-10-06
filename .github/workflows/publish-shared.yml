@@ -1,0 +1,52 @@
+name: Publish @pi-kit/shared
+
+on:
+  push:
+    tags:
+      - "shared/v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    permissions:
+      contents: write # GitHub Release, created by the reusable workflow
+      id-token: write # npm trusted publishing; needed on the caller too
+    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
+    with:
+      tag: ${{ github.ref_name }}
+      package-name: "@pi-kit/shared"
+      package-dir: packages/shared
+      # Runs from the repository root: workspace install plus the whole gate.
+      test-command: corepack enable && pnpm install --frozen-lockfile && pnpm check
+      # pnpm pack seals workspace:/catalog: specifiers before publication.
+      pack-command: pnpm pack --json
+      # Post-pack, pre-upload gate against the exact bytes being published.
+      pack-contents-script: scripts/assert-pack.sh
+
+  rerelease:
+    needs: publish
+    runs-on: ubuntu-latest
+    # Both approval waits share the GitHub-hosted runner's six-hour maximum.
+    timeout-minutes: 360
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # GITHUB_TOKEN may dispatch: "workflow_dispatch and repository_dispatch
+      # events always create workflow runs" (docs.github.com, GITHUB_TOKEN concepts).
+      - name: Re-release extensions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: GH_REPO="$GITHUB_REPOSITORY" sh scripts/rerelease-extensions.sh tag-release.yml tag-release-rewind.yml

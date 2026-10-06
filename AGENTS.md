@@ -20,12 +20,16 @@ Run from the repository root.
 
 - No build step: packages publish raw TypeScript. Relative imports use explicit
   `.ts` extensions.
-- Keep runtime `dependencies` empty. One is admissible only if it is
+- An extension's only runtime dependency may be `@pi-kit/shared`, written
+  `workspace:*` (`pnpm pack` seals it to an exact version; never a range). Any
+  other runtime dependency is admissible only if it is
   exact-pinned, in `bundleDependencies`, has no transitive dependencies and no
   lifecycle scripts, and is re-audited on every bump. Packages Pi supplies
   (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`)
   are optional `*` peers; see Pi's `docs/packages.md`.
-- No shared core package until a second extension needs the same code.
+- Code moves into `@pi-kit/shared` only when a second package needs it; until
+  then it stays in its one consumer. Shared is not a Pi extension: no `pi` key,
+  no `pi-package` keyword.
 - Tests use `node:test` and `node:assert/strict` with top-level `test()` only:
   no subtests, no `t.mock`, no real filesystem or Pi install. Inject
   dependencies instead.
@@ -47,9 +51,14 @@ Releases are per package. A new `packages/<name>/` also needs:
 
 - `.version-bump.<name>.json` pointing at its `package.json`
 - a tag-release caller with `tag-prefix: "<name>/v"`, that bump config, and
-  `paths: "packages/<name>"`; without `paths`, every monorepo commit drives
-  the bump
+  `paths: "packages/<name>"`, plus `packages/shared` when it depends on shared;
+  without `paths`, every monorepo commit drives the bump
 - a `publish-<name>.yml` caller modelled on `publish-permissions.yml`
+- its tag-release workflow in the re-release list in `publish-shared.yml`
+  when it depends on shared
+- before bootstrap, the owner must allow its `<name>/v*` tags in the `npm`
+  environment and cover its namespace with the existing release tag protections,
+  preserving App bypass and required environment approvals
 - a `knip.json` workspace entry and a row in the root README package table
 - a `scripts/pack-probe-<name>.sh` probe, sourced by `scripts/assert-pack.sh`
   to verify the installed package's behaviour with real Pi
@@ -57,6 +66,10 @@ Releases are per package. A new `packages/<name>/` also needs:
   coverage job's `source-paths` globs gate; another layout must add its paths
   there, or its changes go ungated. A type-only module has no LCOV record, so
   it must go in the job's `exclude-paths`, or any change to it fails the gate
+
+Releasing shared re-releases every extension. Release an extension by hand only
+when `packages/shared` has no unreleased commits; the publish check that compares
+shared with the repo refuses otherwise.
 
 The `ci.yml` artifact job validates every package through
 `scripts/assert-pack.sh`, which runs the shared `scripts/assert-package.mjs`

@@ -101,7 +101,11 @@ jobs:
             pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
             mkdir -p "$pack_dir"
             pnpm --filter "$name" pack --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
-            sh scripts/assert-pack.sh "$pack_dir/pack.json"
+          done
+          shared_tarball=$(node -p 'require(process.argv[1]).filename' "$RUNNER_TEMP/pack/shared/pack.json")
+          for dir in packages/*/; do
+            pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
+            SHARED_TARBALL="$shared_tarball" sh scripts/assert-pack.sh "$pack_dir/pack.json"
           done
 
   # One run measures every package and gates it twice: Node enforces a total
@@ -230,5 +234,9 @@ jobs:
             pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
             mkdir -p "$pack_dir"
             pnpm --filter "$name" pack --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
-            sh scripts/assert-pack.sh "$pack_dir/pack.json"
+          done
+          shared_tarball=$(node -p 'require(process.argv[1]).filename' "$RUNNER_TEMP/pack/shared/pack.json")
+          for dir in packages/*/; do
+            pack_dir="$RUNNER_TEMP/pack/$(basename "$dir")"
+            SHARED_TARBALL="$shared_tarball" sh scripts/assert-pack.sh "$pack_dir/pack.json"
           done

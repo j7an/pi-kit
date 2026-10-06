@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { resolvePath } from "../src/path.ts";
+import { expandHome, resolvePath } from "../src/path.ts";
 
 const CWD = "/repo";
 
@@ -22,3 +22,16 @@ for (const [name, raw, expected] of [
     assert.equal(resolvePath(raw, CWD), expected);
   });
 }
+
+test("expandHome: expands a bare tilde", () => {
+  assert.equal(expandHome("~"), homedir());
+});
+
+test("expandHome: expands a tilde prefix", () => {
+  assert.equal(expandHome("~/.ssh/id_rsa"), `${homedir()}/.ssh/id_rsa`);
+});
+
+test("expandHome: leaves other paths untouched", () => {
+  assert.equal(expandHome("src/App.ts"), "src/App.ts");
+  assert.equal(expandHome("/etc/hosts"), "/etc/hosts");
+});
