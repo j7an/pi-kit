@@ -28,6 +28,8 @@ jobs:
   rerelease:
     needs: publish
     runs-on: ubuntu-latest
+    # Both approval waits share the GitHub-hosted runner's six-hour maximum.
+    timeout-minutes: 360
     permissions:
       actions: write
       contents: read

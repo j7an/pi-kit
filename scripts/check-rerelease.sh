@@ -58,18 +58,18 @@ const run = (scenario, failure, both = false) => {
 };
 const first = "workflow run tag-release.yml --ref main -f bump=auto";
 const second = "workflow run tag-release-rewind.yml --ref main -f bump=auto";
-assert.deepEqual(run("watch", true), [first, "run watch 1 --exit-status", second, "run watch 2 --exit-status"]);
-assert.deepEqual(run("both", true, true), [first, "run watch 1 --exit-status", second, "run watch 2 --exit-status"]);
-assert.deepEqual(run("success", false), [first, "run watch 1 --exit-status", second, "run watch 2 --exit-status"]);
+assert.deepEqual(run("watch", true), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
+assert.deepEqual(run("both", true, true), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
+assert.deepEqual(run("success", false), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
 const fallback = run("fallback", false);
-assert.deepEqual(fallback, [first, `run list --workflow tag-release.yml --event workflow_dispatch --branch main --json databaseId,createdAt --jq map(select(.createdAt >= "2026-10-05T12:00:00Z")) | sort_by(.createdAt) | last | .databaseId // empty`, "run watch 7 --exit-status", second, "run watch 2 --exit-status"]);
-assert.deepEqual(run("dispatch", true), [first, second, "run watch 2 --exit-status"]);
+assert.deepEqual(fallback, [first, `run list --workflow tag-release.yml --event workflow_dispatch --branch main --json databaseId,createdAt --jq map(select(.createdAt >= "2026-10-05T12:00:00Z")) | sort_by(.createdAt) | last | .databaseId // empty`, "run watch 7 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
+assert.deepEqual(run("dispatch", true), [first, second, "run watch 2 --exit-status --interval 60"]);
 for (const scenario of ["empty", "malformed", "list"]) {
   const log = run(scenario, true);
   assert.equal(log.filter((line) => line.startsWith("run list ")).length, 10);
   assert.equal(log.filter((line) => line === "sleep 3").length, 9);
-  assert.deepEqual(log.slice(-2), [second, "run watch 2 --exit-status"]);
-  assert.ok(!log.some((line) => line.startsWith("run watch ") && line !== "run watch 2 --exit-status"));
+  assert.deepEqual(log.slice(-2), [second, "run watch 2 --exit-status --interval 60"]);
+  assert.ok(!log.some((line) => line.startsWith("run watch ") && line !== "run watch 2 --exit-status --interval 60"));
 }
 console.log("Re-release checks passed (watch failures, success, fallback selection, dispatch failure, empty/malformed/failed listing)");
 NODE

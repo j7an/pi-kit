@@ -21,7 +21,8 @@ for wf in "$@"; do
       sleep 3
     fi
   done
-  if [ -z "$id" ] || ! gh run watch "$id" --exit-status; then
+  # Release approval may take hours; avoid consuming the repository API quota.
+  if [ -z "$id" ] || ! gh run watch "$id" --exit-status --interval 60; then
     failed="$failed $wf"
   fi
 done
