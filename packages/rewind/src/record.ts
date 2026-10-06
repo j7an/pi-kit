@@ -1,4 +1,4 @@
-import { resolvePath } from "./path.ts";
+import { resolvePath } from "@pi-kit/shared/path";
 import type { Fs, Store } from "./store.ts";
 
 export const RECORD_TYPE = "pi-kit-rewind";

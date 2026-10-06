@@ -188,9 +188,19 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  packages/permissions: {}
+  packages/permissions:
+    dependencies:
+      '@pi-kit/shared':
+        specifier: workspace:*
+        version: link:../shared
 
-  packages/rewind: {}
+  packages/rewind:
+    dependencies:
+      '@pi-kit/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/shared: {}
 
 packages:
 

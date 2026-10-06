@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
+import { resolvePath } from "@pi-kit/shared/path";
 import { DEFAULT_CONFIG } from "./config/defaults.ts";
 import { type Config, type Mode, RANK, type RuleSet } from "./config/schema.ts";
 import { matchCommand, shellPathTargets } from "./match/command.ts";
-import { isOutsideCwd, matchPath, resolvePath } from "./match/path.ts";
+import { isOutsideCwd, matchPath } from "./match/path.ts";
 
 type Dimension = "tools" | "bash" | "paths" | "outsideCwd";
 

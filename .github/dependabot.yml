@@ -17,8 +17,9 @@ updates:
     commit-message:
       prefix: "deps"
 
-  # Root devDependencies. The package itself has no runtime dependencies and pins
-  # supplied peers to `*`, so nothing else moves. Pi and pi-tui move together
+  # Root devDependencies. Extensions' only runtime dependency is `@pi-kit/shared`
+  # via `workspace:*`, which Dependabot skips, and they pin supplied peers to `*`,
+  # so nothing else moves. Pi and pi-tui move together
   # in their own PR so a breaking Pi release cannot hold back the toolchain group;
   # the weekly pi-window CI job
   # covers the older Pi minors this pin moves past.

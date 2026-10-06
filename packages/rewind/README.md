@@ -3,7 +3,7 @@
 Rewind code and conversation to an earlier prompt in the
 [Pi coding agent](https://pi.mariozechner.at/). Records file bytes around Pi's
 built-in `write` and `edit` tools and restores them when you revisit a point
-in the session. No configuration and no runtime dependencies.
+in the session. No configuration and no third-party runtime dependencies.
 
 ```sh
 pi install npm:@pi-kit/rewind
