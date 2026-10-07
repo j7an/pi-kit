@@ -160,7 +160,7 @@ jobs:
       # A package's Pi factory (the default export) needs real Pi, so a PR that
       # changes only those lines fails; cover it with a stub `pi` if one does.
       - name: Check changed-line coverage
-        uses: j7an/shared-workflows/actions/coverage@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
+        uses: j7an/shared-workflows/actions/coverage@19391aa44c5b4f6247a38cf38c158fe692a44990 # v4.12.0
         with:
           report-path: lcov.info
           diff-cover-path: ${{ env.DIFF_COVER_PATH }}
@@ -186,7 +186,7 @@ jobs:
 
       - name: Compute the Pi version window
         id: window
-        uses: j7an/shared-workflows/actions/release-window@30425ad6ef4ee3c3cbccdd563b22de749887f622 # v4.11.0
+        uses: j7an/shared-workflows/actions/release-window@19391aa44c5b4f6247a38cf38c158fe692a44990 # v4.12.0
         with:
           npm-package: "@earendil-works/pi-coding-agent"
           window-days: "30"
