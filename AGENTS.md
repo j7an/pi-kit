@@ -53,7 +53,9 @@ Releases are per package. A new `packages/<name>/` also needs:
 - a tag-release caller with `tag-prefix: "<name>/v"`, that bump config, and
   `paths: "packages/<name>"`, plus `packages/shared` when it depends on shared;
   without `paths`, every monorepo commit drives the bump
-- a `publish-<name>.yml` caller modelled on `publish-permissions.yml`
+- a `publish-<name>.yml` caller modelled on `publish-permissions.yml`, with
+  the same `paths` as its tag-release caller; without it, the release notes
+  list every monorepo PR
 - its tag-release workflow in the re-release list in `publish-shared.yml`
   when it depends on shared
 - before bootstrap, the owner must allow its `<name>/v*` tags in the `npm`
