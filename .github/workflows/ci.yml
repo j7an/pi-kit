@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["22.19.0", "24"]
+        node: ["22.19.0", "22", "24", "26"]
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -42,6 +42,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+          check-latest: true
 
       - name: Install pnpm from packageManager
         run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
@@ -71,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["22.19.0", "24"]
+        node: ["22.19.0", "22", "24", "26"]
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -87,6 +88,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+          check-latest: true
 
       - name: Install pnpm from packageManager
         run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
@@ -133,6 +135,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
+          check-latest: true
 
       - name: Install pnpm from packageManager
         run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
@@ -218,6 +221,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
+          check-latest: true
 
       - name: Install pnpm from packageManager
         run: npm install --global "$(node -p 'require("./package.json").packageManager')" # zizmor: ignore[adhoc-packages] exact version from packageManager on an ephemeral runner
