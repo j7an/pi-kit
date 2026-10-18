@@ -1,7 +1,7 @@
 # pi-kit
 
 Extensions that bring the most useful features shared by Claude Code and
-Codex to the [Pi coding agent](https://pi.mariozechner.at/).
+Codex to the [Pi coding agent](https://pi.dev).
 
 ## Philosophy
 
