@@ -67,7 +67,8 @@ set -- "$tarball"
 if [ -n "${SHARED_TARBALL:-}" ] && [ "$name" != "@pi-kit/shared" ]; then
   set -- "$@" "$SHARED_TARBALL"
 fi
-if ! npm install --no-audit --no-fund "$@" > "$work/npm.log" 2>&1; then
+# No scripts: a hook that ran here could delete itself before assert-package looks.
+if ! npm install --no-audit --no-fund --ignore-scripts "$@" > "$work/npm.log" 2>&1; then
   cat "$work/npm.log" >&2
   exit 1
 fi

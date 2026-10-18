@@ -119,8 +119,10 @@ for (const dir of tree) {
     `${manifest.name} has no native build`,
     manifest.gypfile !== true && !existsSync(join(dir, "binding.gyp")),
   );
+  const optional = manifest.optionalDependencies ?? {};
   for (const name of Object.keys(manifest.dependencies ?? {})) {
-    if (name.startsWith("@pi-kit/")) continue;
+    // npm lets optionalDependencies override a same-named dependencies entry.
+    if (name.startsWith("@pi-kit/") || Object.hasOwn(optional, name)) continue;
     const found = resolveInstalled(dir, name);
     check(`${name} is installed`, found !== undefined);
     if (found) tree.add(found);

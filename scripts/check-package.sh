@@ -94,8 +94,17 @@ validate(join(gyp, "rewind"), "packages/rewind", "inner has no native build");
 const absent = thirdParty("absent");
 rmSync(join(absent, "rewind/node_modules/left-pad/node_modules/inner"), { recursive: true });
 validate(join(absent, "rewind"), "packages/rewind", "inner is installed");
+const overlap = { dependencies: { "win-only": "1.0.0" }, optionalDependencies: { "win-only": "1.0.0" } };
+validate(join(thirdParty("optional-omitted", overlap), "rewind"), "packages/rewind");
+const optionalScript = thirdParty("optional-script", overlap);
+installed(join(optionalScript, "rewind/node_modules/win-only"), { name: "win-only", version: "1.0.0", scripts: { install: "node evil.js" } });
+validate(join(optionalScript, "rewind"), "packages/rewind", "win-only has no install script");
 const supplied = fixture("supplied");
 manifest(join(supplied, "rewind"), (pkg) => { pkg.dependencies.typebox = "1.0.0"; });
 validate(join(supplied, "rewind"), "packages/rewind", "typebox dependency is allowed");
-console.log("Package fixture checks passed (4 positives, A–D and 9 safety cases)");
+// Exact flag on purpose: an install hook that runs before validation can erase its own evidence.
+const installs = readFileSync("scripts/assert-pack.sh", "utf8").split("\n").filter((line) => line.includes('npm install') && line.includes('"$@"'));
+assert.equal(installs.length, 1, "assert-pack.sh has one tarball install");
+assert.ok(installs[0].includes("--ignore-scripts"), installs[0]);
+console.log("Package fixture checks passed (5 positives, A–D and 10 safety cases)");
 NODE
