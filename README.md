@@ -1,17 +1,19 @@
 # pi-kit
 
-A personal, self-audited toolkit of extensions for the
-[Pi coding agent](https://pi.mariozechner.at/).
+Extensions that bring the most useful features shared by Claude Code and
+Codex to the [Pi coding agent](https://pi.dev).
 
 ## Philosophy
 
-Pi packages run with full system access. Installing a third-party extension
-means executing arbitrary code you have not read. Auditing a 16,000-line
-package is not realistic; writing a small one you understand is. Every
-package here is small enough to re-read in one sitting, ships raw TypeScript
-with no build step, and has no runtime dependencies except pi-kit's own
-`@pi-kit/shared`, pinned exactly, unless a third-party one is exact-pinned,
-bundled, zero-transitive, script-free, and re-audited on every bump.
+Pi ships a minimal core and leaves features such as permissions, checkpoints,
+plan mode and sub-agents to extensions. pi-kit fills those gaps where Claude
+Code and Codex agree a feature is worth having: one independent, tested
+package per feature.
+
+Pi packages run with full system access, and their dependencies install with
+them. pi-kit keeps external runtime dependencies few. One is added only when
+it simplifies the code, and it must be well maintained, widely used, and light
+on transitive dependencies. Packages ship raw TypeScript with no build step.
 
 **Extensions define core; core does not define extensions.** Code joins the
 shared library, `@pi-kit/shared`, only when a second extension needs it.

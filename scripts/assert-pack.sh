@@ -38,6 +38,12 @@ if (!entry || typeof entry.name !== "string" || !/^@pi-kit\/[a-z0-9]+(?:-[a-z0-9
 console.log(entry.name);
 NODE
 )
+# Checked on the tarball: once installed, npm may nest dependencies under the package.
+if tar -tzf "$tarball" | grep -q '^package/node_modules/'; then
+  echo "tarball must not contain node_modules: $tarball" >&2
+  exit 1
+fi
+
 short=${name#@pi-kit/}
 if [ ! -d "$repo_root/packages/$short" ] || [ ! -f "$repo_root/scripts/pack-probe-$short.sh" ]; then
   echo "workspace package or packed probe is missing: $name" >&2
@@ -61,7 +67,8 @@ set -- "$tarball"
 if [ -n "${SHARED_TARBALL:-}" ] && [ "$name" != "@pi-kit/shared" ]; then
   set -- "$@" "$SHARED_TARBALL"
 fi
-if ! npm install --no-audit --no-fund "$@" > "$work/npm.log" 2>&1; then
+# No scripts: a hook that ran here could delete itself before assert-package looks.
+if ! npm install --no-audit --no-fund --ignore-scripts "$@" > "$work/npm.log" 2>&1; then
   cat "$work/npm.log" >&2
   exit 1
 fi

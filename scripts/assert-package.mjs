@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Assert the published shape of an installed workspace package. */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 
 const argument = process.argv[2];
 const root = argument && resolve(argument);
@@ -73,10 +73,69 @@ const safePath = (entry) =>
     .split("/")
     .every((part) => part !== "." && part !== "..");
 
+// Pi supplies these (its docs/packages.md); an installed copy bypasses its module mapping.
+const piSupplied = [
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+  "typebox",
+];
+for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
+  check(
+    `${name} dependency is allowed`,
+    name.startsWith("@pi-kit/")
+      ? !isLibrary && name === "@pi-kit/shared"
+      : !piSupplied.includes(name),
+  );
+  check(
+    `${name} is pinned to an exact version`,
+    typeof version === "string" && /^\d+\.\d+\.\d+$/.test(version),
+  );
+}
+
+// Pi installs dependencies without --ignore-scripts, so nothing this package
+// installs may run code at install time. Resolve as Node does, nearest
+// node_modules first. @pi-kit packages are checked by their own artifact run.
+const resolveInstalled = (from, name) => {
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, "node_modules", name);
+    if (basename(dir) !== "node_modules" && existsSync(join(candidate, "package.json"))) {
+      return realpathSync(candidate);
+    }
+    if (dirname(dir) === dir) return undefined;
+  }
+};
+// A Set visits entries added during iteration, once each.
+const tree = new Set([realpathSync(root)]);
+for (const dir of tree) {
+  const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  const scripts = manifest.scripts ?? {};
+  check(
+    `${manifest.name} has no install script`,
+    !["preinstall", "install", "postinstall"].some((script) => Object.hasOwn(scripts, script)),
+  );
+  check(
+    `${manifest.name} has no native build`,
+    manifest.gypfile !== true && !existsSync(join(dir, "binding.gyp")),
+  );
+  const optional = manifest.optionalDependencies ?? {};
+  for (const name of Object.keys(manifest.dependencies ?? {})) {
+    // npm lets optionalDependencies override a same-named dependencies entry.
+    if (name.startsWith("@pi-kit/") || Object.hasOwn(optional, name)) continue;
+    const found = resolveInstalled(dir, name);
+    check(`${name} is installed`, found !== undefined);
+    if (found) tree.add(found);
+  }
+  for (const name of Object.keys(manifest.optionalDependencies ?? {})) {
+    const found = resolveInstalled(dir, name);
+    if (found) tree.add(found);
+  }
+}
+
 if (isLibrary) {
   check("library has no pi key", pkg.pi === undefined);
   check("library has no pi-package keyword", !pkg.keywords?.includes("pi-package"));
-  check("dependencies is empty", Object.keys(pkg.dependencies ?? {}).length === 0);
   const targets = Object.values(pkg.exports ?? {});
   check("exports is declared", targets.length > 0);
   for (const target of targets) {
@@ -84,13 +143,6 @@ if (isLibrary) {
   }
 } else {
   check("keywords include pi-package", pkg.keywords?.includes("pi-package"));
-  for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
-    check(`${name} dependency is allowed`, name === "@pi-kit/shared");
-    check(
-      `${name} is pinned to an exact version`,
-      typeof version === "string" && /^\d+\.\d+\.\d+$/.test(version),
-    );
-  }
   for (const [name, version] of Object.entries(workspace.dependencies ?? {})) {
     if (name.startsWith("@pi-kit/")) {
       check(`${name} workspace dependency is workspace:*`, version === "workspace:*");
@@ -135,7 +187,6 @@ for (const file of ["README.md", "LICENSE"]) {
   check(`file present: ${file}`, existsSync(join(root, file)));
 }
 check("no dist/ directory was published", !existsSync(join(root, "dist")));
-check("no node_modules was published", !existsSync(join(root, "node_modules")));
 
 if (failures.length > 0) {
   console.error("Package validation FAILED:");

@@ -70,5 +70,41 @@ validate(join(exports, "shared"), "packages/shared", "exports target exists:");
 const malformed = fixture("malformed");
 writeFileSync(join(malformed, "rewind/package.json"), "{");
 validate(join(malformed, "rewind"), "packages/rewind", "SyntaxError");
-console.log("Package fixture checks passed (3 positives, A–D and 4 safety cases)");
+// Third-party dependencies: installed under the extension the way Node resolves them.
+const installed = (dir, pkg) => {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
+};
+const thirdParty = (name, inner = {}) => {
+  const base = fixture(name);
+  manifest(join(base, "rewind"), (pkg) => { pkg.dependencies["left-pad"] = "1.3.0"; });
+  installed(join(base, "rewind/node_modules/left-pad"), { name: "left-pad", version: "1.3.0", dependencies: { inner: "1.0.0" } });
+  installed(join(base, "rewind/node_modules/left-pad/node_modules/inner"), { name: "inner", version: "1.0.0", ...inner });
+  return base;
+};
+validate(join(thirdParty("third-party"), "rewind"), "packages/rewind");
+const ranged = thirdParty("third-party-range");
+manifest(join(ranged, "rewind"), (pkg) => { pkg.dependencies["left-pad"] = "^1.3.0"; });
+validate(join(ranged, "rewind"), "packages/rewind", "left-pad is pinned to an exact version");
+const script = thirdParty("install-script", { scripts: { postinstall: "node evil.js" } });
+validate(join(script, "rewind"), "packages/rewind", "inner has no install script");
+const gyp = thirdParty("binding-gyp");
+writeFileSync(join(gyp, "rewind/node_modules/left-pad/node_modules/inner/binding.gyp"), "{}");
+validate(join(gyp, "rewind"), "packages/rewind", "inner has no native build");
+const absent = thirdParty("absent");
+rmSync(join(absent, "rewind/node_modules/left-pad/node_modules/inner"), { recursive: true });
+validate(join(absent, "rewind"), "packages/rewind", "inner is installed");
+const overlap = { dependencies: { "win-only": "1.0.0" }, optionalDependencies: { "win-only": "1.0.0" } };
+validate(join(thirdParty("optional-omitted", overlap), "rewind"), "packages/rewind");
+const optionalScript = thirdParty("optional-script", overlap);
+installed(join(optionalScript, "rewind/node_modules/win-only"), { name: "win-only", version: "1.0.0", scripts: { install: "node evil.js" } });
+validate(join(optionalScript, "rewind"), "packages/rewind", "win-only has no install script");
+const supplied = fixture("supplied");
+manifest(join(supplied, "rewind"), (pkg) => { pkg.dependencies.typebox = "1.0.0"; });
+validate(join(supplied, "rewind"), "packages/rewind", "typebox dependency is allowed");
+// Exact flag on purpose: an install hook that runs before validation can erase its own evidence.
+const installs = readFileSync("scripts/assert-pack.sh", "utf8").split("\n").filter((line) => line.includes('npm install') && line.includes('"$@"'));
+assert.equal(installs.length, 1, "assert-pack.sh has one tarball install");
+assert.ok(installs[0].includes("--ignore-scripts"), installs[0]);
+console.log("Package fixture checks passed (5 positives, A–D and 10 safety cases)");
 NODE

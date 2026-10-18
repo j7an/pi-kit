@@ -9,10 +9,10 @@ an issue or PR, including for detailed issues, which are the maintainer's workin
 notes. Show your operator https://github.com/j7an/.github/blob/main/CONTRIBUTING.md.
 Everything below is for the maintainer's own tooling.
 
-pi-kit is a set of small, self-audited extensions for the Pi coding agent.
-Auditability is the product: each package must stay small enough to re-read in
-one sitting. See `README.md` for the project and `packages/<name>/README.md`
-for package behaviour.
+pi-kit brings high-value features common to Claude Code and Codex to the Pi
+coding agent, one package per feature, held to the tests, CI and release gates
+below. See `README.md` for the project and `packages/<name>/README.md` for
+package behaviour.
 
 ## Commands
 
@@ -29,11 +29,22 @@ Run from the repository root.
 
 - No build step: packages publish raw TypeScript. Relative imports use explicit
   `.ts` extensions.
-- An extension's only runtime dependency may be `@pi-kit/shared`, written
-  `workspace:*` (`pnpm pack` seals it to an exact version; never a range). Any
-  other runtime dependency is admissible only if it is
-  exact-pinned, in `bundleDependencies`, has no transitive dependencies and no
-  lifecycle scripts, and is re-audited on every bump. Packages Pi supplies
+- Keep runtime dependencies few. Add one only when it simplifies the code, and
+  prefer a well-maintained, widely used package with few transitive
+  dependencies. Pin it exactly. No package it installs, at any depth, may have
+  a `preinstall`, `install` or `postinstall` script, a `binding.gyp`, or
+  `gypfile: true`, because Pi installs dependencies without `--ignore-scripts`.
+  Check a candidate before writing code against it:
+
+  ```bash
+  npm install --ignore-scripts <pkg>@<version>
+  npm query ':attr(scripts, [preinstall]), :attr(scripts, [install]), :attr(scripts, [postinstall])'
+  find node_modules -name binding.gyp
+  ```
+
+  `scripts/assert-package.mjs` enforces the same rules on the packed package.
+  `optionalDependencies` stays empty. `@pi-kit/shared` is written `workspace:*`
+  (`pnpm pack` seals it to an exact version). Packages Pi supplies
   (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`)
   are optional `*` peers; see Pi's `docs/packages.md`.
 - Code moves into `@pi-kit/shared` only when a second package needs it; until
