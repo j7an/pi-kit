@@ -70,5 +70,32 @@ validate(join(exports, "shared"), "packages/shared", "exports target exists:");
 const malformed = fixture("malformed");
 writeFileSync(join(malformed, "rewind/package.json"), "{");
 validate(join(malformed, "rewind"), "packages/rewind", "SyntaxError");
-console.log("Package fixture checks passed (3 positives, A–D and 4 safety cases)");
+// Third-party dependencies: installed under the extension the way Node resolves them.
+const installed = (dir, pkg) => {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
+};
+const thirdParty = (name, inner = {}) => {
+  const base = fixture(name);
+  manifest(join(base, "rewind"), (pkg) => { pkg.dependencies["left-pad"] = "1.3.0"; });
+  installed(join(base, "rewind/node_modules/left-pad"), { name: "left-pad", version: "1.3.0", dependencies: { inner: "1.0.0" } });
+  installed(join(base, "rewind/node_modules/left-pad/node_modules/inner"), { name: "inner", version: "1.0.0", ...inner });
+  return base;
+};
+validate(join(thirdParty("third-party"), "rewind"), "packages/rewind");
+const ranged = thirdParty("third-party-range");
+manifest(join(ranged, "rewind"), (pkg) => { pkg.dependencies["left-pad"] = "^1.3.0"; });
+validate(join(ranged, "rewind"), "packages/rewind", "left-pad is pinned to an exact version");
+const script = thirdParty("install-script", { scripts: { postinstall: "node evil.js" } });
+validate(join(script, "rewind"), "packages/rewind", "inner has no install script");
+const gyp = thirdParty("binding-gyp");
+writeFileSync(join(gyp, "rewind/node_modules/left-pad/node_modules/inner/binding.gyp"), "{}");
+validate(join(gyp, "rewind"), "packages/rewind", "inner has no native build");
+const absent = thirdParty("absent");
+rmSync(join(absent, "rewind/node_modules/left-pad/node_modules/inner"), { recursive: true });
+validate(join(absent, "rewind"), "packages/rewind", "inner is installed");
+const supplied = fixture("supplied");
+manifest(join(supplied, "rewind"), (pkg) => { pkg.dependencies.typebox = "1.0.0"; });
+validate(join(supplied, "rewind"), "packages/rewind", "typebox dependency is allowed");
+console.log("Package fixture checks passed (4 positives, A–D and 9 safety cases)");
 NODE
