@@ -392,6 +392,33 @@ for (const command of [
   });
 }
 
+for (const command of [
+  "echo x >> ~/.zshenv",
+  "echo x > ~/.zlogin",
+  "echo x >> ~/.bash_login",
+  "echo x | tee -a ~/.config/git/config",
+]) {
+  test("default config: shell write to a startup file asks: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "ask");
+  });
+}
+
+for (const name of [".zshenv", ".zlogin", ".bash_login", ".config/git/config"]) {
+  test("default config: editing ~/" + name + " from home names its rule", () => {
+    const home = homedir();
+    const decision = decide(DEFAULT_CONFIG, file("write", `~/${name}`, `${home}/${name}`), home);
+    assert.equal(decision.outcome, "ask");
+    assert.equal(decision.pattern, `~/${name}`);
+  });
+}
+
+test("default config: git's ignore file stays writable", () => {
+  assert.equal(
+    decide(DEFAULT_CONFIG, bash("echo x >> ~/.config/git/ignore"), CWD).outcome,
+    "allow",
+  );
+});
+
 test("default config: a home config write names the path rule", () => {
   const target = `${homedir()}/.zshrc`;
   assert.equal(decide(DEFAULT_CONFIG, file("write", "~/.zshrc", target), CWD).pattern, "~/.zshrc");
