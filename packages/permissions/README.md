@@ -56,7 +56,21 @@ JSON, one file per scope. Every key is optional.
   "paths": {
     "appliesTo": ["write", "edit"],
     "deny": [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-    "ask": [".github/**", ".git/**", ".pi/**"],
+    "ask": [
+      ".github/**",
+      ".git/**",
+      ".pi/**",
+      ".husky/**",
+      ".vscode/**",
+      ".npmrc",
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.profile",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.gitconfig",
+      "~/.npmrc"
+    ],
     "allow": []
   }
 }
@@ -67,6 +81,8 @@ Under the defaults, `read /etc/hosts` is allowed (`read` is not in
 (the deny patterns are deliberately narrow).
 Writes under `.git/` (hooks run as code) and `.pi/` (project extensions and
 this package's own project config) ask.
+Writes under `.husky/` and `.vscode/`, to `.npmrc`, and to shell, git and npm
+config in your home folder also ask, including through shell redirects and `tee`.
 
 ### Keys
 

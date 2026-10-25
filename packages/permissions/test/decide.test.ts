@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
 import { test } from "node:test";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import type { Config } from "../src/config/schema.ts";
@@ -369,6 +370,38 @@ test("default config: read of /etc/hosts is allowed, write is asked", () => {
     "ask",
   );
 });
+
+for (const [raw, resolved] of [
+  [".husky/pre-commit", "/repo/.husky/pre-commit"],
+  [".vscode/tasks.json", "/repo/.vscode/tasks.json"],
+  [".npmrc", "/repo/.npmrc"],
+] as const) {
+  test("default config: writing repo config asks: " + raw, () => {
+    assert.equal(decide(DEFAULT_CONFIG, file("write", raw, resolved), CWD).outcome, "ask");
+  });
+}
+
+for (const command of [
+  "echo x >> ~/.zshrc",
+  "echo x > ~/.bashrc",
+  "echo x | tee -a ~/.gitconfig",
+  "echo x >> ~/.npmrc",
+]) {
+  test("default config: shell write to home config asks: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "ask");
+  });
+}
+
+test("default config: a home config write names the path rule", () => {
+  const target = `${homedir()}/.zshrc`;
+  assert.equal(decide(DEFAULT_CONFIG, file("write", "~/.zshrc", target), CWD).pattern, "~/.zshrc");
+});
+
+for (const command of ["ls 2>/dev/null", "echo x > /tmp/out.txt"]) {
+  test("default config: ordinary redirects stay allowed: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "allow");
+  });
+}
 
 // --- shell path targets --------------------------------------------------
 

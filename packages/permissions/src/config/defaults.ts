@@ -23,7 +23,21 @@ export const DEFAULT_CONFIG = {
     // Deliberately narrow. `deny` is always checked before `allow`, so a broad
     // `.env.*` would swallow `.env.example` and no allow rule could rescue it.
     deny: [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-    ask: [".github/**", ".git/**", ".pi/**"],
+    ask: [
+      ".github/**",
+      ".git/**",
+      ".pi/**",
+      ".husky/**",
+      ".vscode/**",
+      ".npmrc",
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.profile",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.gitconfig",
+      "~/.npmrc",
+    ],
     allow: [],
   },
   // `satisfies`, not `: Config`. The annotation would widen every value to the
