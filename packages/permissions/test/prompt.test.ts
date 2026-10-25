@@ -4,6 +4,7 @@ import type { Decision, PermissionRequest } from "../src/decide.ts";
 import {
   ALLOW_ONCE,
   ALLOW_SESSION,
+  allowPrefix,
   blockReason,
   DENY,
   DENY_WITH_MESSAGE,
@@ -108,6 +109,35 @@ test("promptUser: offers exactly four options in a fixed order", async () => {
   assert.equal(fake.select.calls.length, 1);
   const [, options] = fake.select.calls[0] as [string, string[]];
   assert.deepEqual(options, [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE]);
+});
+
+test("promptUser: offers the prefix option after Allow for this session", async () => {
+  const fake = ui(ALLOW_ONCE);
+  await promptUser(fake, bash("git push origin main"), decision);
+  const [, options] = fake.select.calls[0] as [string, string[]];
+  assert.deepEqual(options, [
+    ALLOW_ONCE,
+    ALLOW_SESSION,
+    'Allow commands starting with "git push" for this session',
+    DENY,
+    DENY_WITH_MESSAGE,
+  ]);
+});
+
+test("promptUser: returns the prefix when it is chosen", async () => {
+  const fake = ui(allowPrefix("git push"));
+  assert.deepEqual(await promptUser(fake, bash("git push origin main"), decision), {
+    prefix: "git push",
+  });
+});
+
+test("promptUser: no prefix option without a prefix to offer", async () => {
+  for (const req of [bash("git push"), bash("git push origin && ls"), write("a.txt")]) {
+    const fake = ui(ALLOW_ONCE);
+    await promptUser(fake, req, decision);
+    const [, options] = fake.select.calls[0] as [string, string[]];
+    assert.deepEqual(options, [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE]);
+  }
 });
 
 test("promptUser: includes what is being asked about in the message", async () => {
