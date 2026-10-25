@@ -110,3 +110,26 @@ test("formatStatus: lists approvals and problems, or none", () => {
     /Allowed for this session\n {2}bash: npm test\nProblems\n {2}x: bad$/,
   );
 });
+
+test("formatStatus: an empty appliesTo reads as none", () => {
+  const [defaults, , project] = result().layers;
+  const empty = { paths: { appliesTo: [] } };
+  const text = formatStatus(
+    result({
+      config: mergeConfig(mergeConfig({}, DEFAULT_CONFIG), empty),
+      layers: [
+        defaults as LoadResult["layers"][number],
+        { name: "Global", path: "/g.json", status: "loaded", config: empty },
+        project as LoadResult["layers"][number],
+      ],
+    }),
+    [],
+  );
+  assert.ok((lines(text)[1] ?? "").endsWith("path rules apply to: none"));
+  assert.match(text, /^Global {2}\/g\.json — loaded\n {2}paths appliesTo\s+none$/m);
+});
+
+test("formatStatus: indents the continuation lines of a multi-line entry", () => {
+  const text = formatStatus(result({ problems: ["a\nb"] }), ["bash: echo a\necho b"]);
+  assert.match(text, /\n {2}bash: echo a\n {4}echo b\nProblems\n {2}a\n {4}b$/);
+});

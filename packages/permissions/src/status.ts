@@ -8,6 +8,18 @@ function row(label: string, value: string): string {
   return `  ${label.padEnd(16)}${value}`;
 }
 
+/** An empty list is meaningful (`appliesTo: []` gates no tool), so it reads as "none". */
+function joined(values: string[]): string {
+  return values.length > 0 ? values.join(", ") : "none";
+}
+
+/** One entry per line; continuation lines of a multi-line entry stay inside the section. */
+function entries(values: string[]): string[] {
+  return (values.length > 0 ? values : ["none"]).map(
+    (value) => `  ${value.replaceAll("\n", "\n    ")}`,
+  );
+}
+
 /** What one layer sets, as written: scalars first, then each non-empty rule list. */
 function layerRows(config: Config): string[] {
   const rows: string[] = [];
@@ -16,7 +28,7 @@ function layerRows(config: Config): string[] {
     if (value !== undefined) rows.push(row(key, value));
   }
   if (config.paths?.appliesTo !== undefined) {
-    rows.push(row("paths appliesTo", config.paths.appliesTo.join(", ")));
+    rows.push(row("paths appliesTo", joined(config.paths.appliesTo)));
   }
   for (const dimension of ["tools", "bash", "paths"] as const) {
     for (const list of ["deny", "ask", "allow"] as const) {
@@ -37,7 +49,7 @@ export function formatStatus(result: LoadResult, approvals: string[]): string {
     `defaultMode ${config.defaultMode ?? DEFAULT_CONFIG.defaultMode}`,
     `headlessAsk ${config.headlessAsk ?? DEFAULT_CONFIG.headlessAsk}`,
     `outsideCwd ${config.outsideCwd ?? DEFAULT_CONFIG.outsideCwd}`,
-    `path rules apply to: ${appliesTo.join(", ")}`,
+    `path rules apply to: ${joined(appliesTo)}`,
   ].join(" · ");
 
   const out = [HEADER, settings + (result.forcedAsk ? " (forced: config invalid)" : ""), ""];
@@ -48,8 +60,8 @@ export function formatStatus(result: LoadResult, approvals: string[]): string {
     if (layer.config !== undefined) out.push(...layerRows(layer.config));
   }
   out.push("", "Allowed for this session");
-  out.push(...(approvals.length > 0 ? approvals : ["none"]).map((line) => `  ${line}`));
+  out.push(...entries(approvals));
   out.push("Problems");
-  out.push(...(result.problems.length > 0 ? result.problems : ["none"]).map((line) => `  ${line}`));
+  out.push(...entries(result.problems));
   return out.join("\n");
 }
