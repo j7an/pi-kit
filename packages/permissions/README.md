@@ -124,11 +124,13 @@ session. Fix it and start a new session.
    Deny and ask also match each piece after collapsing whitespace and stripping
    leading `VAR=` assignments and the wrappers `timeout`, `time`, `nice`,
    `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`, `sudo`, `doas`.
-   For `rm`, deny and ask also match a normalized form: recursive and force
-   flags in any spelling or order (`-fr`, `-Rf`, `-r -f`, `--recursive --force`)
-   read as `rm -rf`. Flag values after a wrapper are not skipped, so
-   `sudo -u root rm -rf x` is not caught.
    `allow` does not: `allow: ["npm test"]` does not cover `timeout 30 npm test`.
+   Flag values after a wrapper are not skipped, so `sudo -u root rm -rf x` is
+   not caught.
+   For `rm`, deny and ask also match a normalized form: short flags in any
+   cluster or order and the long forms `--recursive` and `--force` (`-fr`,
+   `-Rf`, `-r -f`, `--recursive --force`) read as `rm -rf`. Abbreviated long
+   options such as `--recur` are not recognised.
 4. **Shell path targets:** redirect targets and the file arguments of `cat`,
    `head`, `tail`, `sed` and `tee` are checked against `paths.deny` and
    `paths.ask` as the tool they imitate (`>` and `tee` = write, `sed -i` =
