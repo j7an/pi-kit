@@ -68,10 +68,14 @@ JSON, one file per scope. Every key is optional.
       ".npmrc",
       "~/.bashrc",
       "~/.bash_profile",
+      "~/.bash_login",
       "~/.profile",
+      "~/.zshenv",
       "~/.zshrc",
       "~/.zprofile",
+      "~/.zlogin",
       "~/.gitconfig",
+      "~/.config/git/config",
       "~/.npmrc"
     ],
     "allow": []
