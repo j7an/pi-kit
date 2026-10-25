@@ -5,12 +5,14 @@ const PREFIX = "Blocked by pi-kit permissions";
 export const ALLOW_ONCE = "Allow once";
 export const ALLOW_SESSION = "Allow for this session";
 export const DENY = "Deny";
+export const DENY_WITH_MESSAGE = "Deny with message…";
 
-type PromptAnswer = "once" | "session" | "deny";
+type PromptAnswer = "once" | "session" | "deny" | { note: string };
 
 /** The slice of Pi's `ctx.ui` this module needs. Keeps tests free of Pi. */
 type PromptUI = {
   select(message: string, options: string[]): Promise<string | undefined>;
+  input(title: string, placeholder?: string): Promise<string | undefined>;
 };
 
 /** A one-line, human-readable summary of what the agent tried to do. */
@@ -65,8 +67,12 @@ export async function promptUser(
       : "";
   const message = `pi-kit permissions\n\n  ${describeRequest(req)}${rule}`;
 
-  const choice = await ui.select(message, [ALLOW_ONCE, ALLOW_SESSION, DENY]);
+  const choice = await ui.select(message, [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE]);
   if (choice === ALLOW_ONCE) return "once";
   if (choice === ALLOW_SESSION) return "session";
+  if (choice === DENY_WITH_MESSAGE) {
+    const note = (await ui.input("Tell the agent what to do instead"))?.trim();
+    if (note) return { note };
+  }
   return "deny";
 }

@@ -113,12 +113,13 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
       }
       if (answer === "once") return undefined;
 
+      const note = typeof answer === "object" ? ` The user said: ${answer.note}` : "";
       return {
         block: true,
         reason: `${blockReason(decision, request, {
           headless: false,
           forcedAskProblem,
-        })} Approval was not granted.`,
+        })} Approval was not granted.${note}`,
       };
     } catch (error) {
       return { block: true, reason: gateErrorReason(error) };

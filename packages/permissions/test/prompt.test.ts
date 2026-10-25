@@ -6,6 +6,7 @@ import {
   ALLOW_SESSION,
   blockReason,
   DENY,
+  DENY_WITH_MESSAGE,
   describeRequest,
   gateErrorReason,
   promptUser,
@@ -33,7 +34,10 @@ function recorder<T>(impl: (...args: unknown[]) => Promise<T>) {
   return Object.assign(fn, { calls });
 }
 
-const ui = (answer: string | undefined) => ({ select: recorder(async () => answer) });
+const ui = (answer: string | undefined, note?: string) => ({
+  select: recorder(async () => answer),
+  input: recorder(async (): Promise<string | undefined> => note),
+});
 
 test("describeRequest: shows the command for bash", () => {
   assert.equal(describeRequest(bash("rm -rf /tmp")), "bash: rm -rf /tmp");
@@ -98,12 +102,12 @@ test("gateErrorReason: is distinguishable from a policy decision", () => {
 const req = bash("npm publish");
 const decision: Decision = { outcome: "ask", dimension: "bash", pattern: "npm publish*" };
 
-test("promptUser: offers exactly three options in a fixed order", async () => {
+test("promptUser: offers exactly four options in a fixed order", async () => {
   const fake = ui(ALLOW_ONCE);
   await promptUser(fake, req, decision);
   assert.equal(fake.select.calls.length, 1);
   const [, options] = fake.select.calls[0] as [string, string[]];
-  assert.deepEqual(options, [ALLOW_ONCE, ALLOW_SESSION, DENY]);
+  assert.deepEqual(options, [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE]);
 });
 
 test("promptUser: includes what is being asked about in the message", async () => {
@@ -137,9 +141,38 @@ test("promptUser: denies on an unrecognised answer", async () => {
 
 test("promptUser: propagates a rejected dialog rather than reporting a policy deny", async () => {
   const rejecting = {
+    ...ui(undefined),
     select: recorder(async () => {
       throw new Error("ui exploded");
     }),
   };
   await assert.rejects(promptUser(rejecting, req, decision), /ui exploded/);
+});
+
+test("promptUser: returns the trimmed note when denying with a message", async () => {
+  const fake = ui(DENY_WITH_MESSAGE, "  use pnpm instead  ");
+  assert.deepEqual(await promptUser(fake, req, decision), { note: "use pnpm instead" });
+  assert.equal(fake.input.calls.length, 1);
+  assert.equal((fake.input.calls[0] as [string])[0], "Tell the agent what to do instead");
+});
+
+test("promptUser: an empty or dismissed message is a plain deny", async () => {
+  assert.equal(await promptUser(ui(DENY_WITH_MESSAGE, "   "), req, decision), "deny");
+  assert.equal(await promptUser(ui(DENY_WITH_MESSAGE, undefined), req, decision), "deny");
+});
+
+test("promptUser: plain Deny does not open the message box", async () => {
+  const fake = ui(DENY);
+  await promptUser(fake, req, decision);
+  assert.equal(fake.input.calls.length, 0);
+});
+
+test("promptUser: propagates a rejected message box", async () => {
+  const fake = {
+    ...ui(DENY_WITH_MESSAGE),
+    input: recorder(async () => {
+      throw new Error("input exploded");
+    }),
+  };
+  await assert.rejects(promptUser(fake, req, decision), /input exploded/);
 });

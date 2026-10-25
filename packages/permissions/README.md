@@ -18,7 +18,9 @@ Restart Pi. With no configuration, the [defaults](#defaults) apply.
 Every tool call resolves to one outcome:
 
 - **allow** — the call runs.
-- **ask** — you choose *Allow once*, *Allow for this session*, or *Deny*.
+- **ask** — you choose *Allow once*, *Allow for this session*, *Deny*, or
+  *Deny with message…*, which asks for a note and passes it to the model with
+  the block reason (an empty note is a plain *Deny*).
   With no UI (`pi -p`), `ask` becomes `headlessAsk`, which defaults to `deny`.
 - **deny** — the call is blocked and the model is told which rule fired.
 

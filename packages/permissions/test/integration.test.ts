@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createExtension, type ExtensionDeps } from "../extensions/index.ts";
 import { globalConfigPath, projectConfigPath } from "../src/config/load.ts";
-import { ALLOW_ONCE, ALLOW_SESSION, DENY } from "../src/prompt.ts";
+import { ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE } from "../src/prompt.ts";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: the registry holds handlers for multiple event types
 type Handler = (event: any, ctx: any) => Promise<unknown>;
@@ -48,9 +48,10 @@ function stubDeps(files: Record<string, string> = {}): ExtensionDeps {
   };
 }
 
-function stubUi(selectAnswer: string | undefined = DENY) {
+function stubUi(selectAnswer: string | undefined = DENY, inputAnswer?: string) {
   return {
     select: recorder(async (): Promise<string | undefined> => selectAnswer),
+    input: recorder(async (): Promise<string | undefined> => inputAnswer),
     notify: recorder(() => undefined),
     setStatus: recorder(() => undefined),
   };
@@ -354,6 +355,17 @@ for (const [label, config, tool, input, expected] of [
     assert.match(result.reason, /Approval was not granted/);
   });
 }
+
+test("deny with message passes the note to the model and keeps the rule", async () => {
+  const pi = build({ [GLOBAL]: JSON.stringify({ bash: { ask: ["git push*"] } }) });
+  const ctx = stubCtx({ ui: stubUi(DENY_WITH_MESSAGE, "open a PR instead") });
+  const result = (await pi.fire("tool_call", call("bash", { command: "git push" }), ctx)) as Block;
+  assert.equal(result.block, true);
+  assert.match(result.reason, /bash rule "git push\*" \(ask\)/);
+  assert.match(result.reason, /Approval was not granted\. The user said: open a PR instead$/);
+  await pi.fire("tool_call", call("bash", { command: "git push" }), ctx);
+  assert.equal(ctx.ui.select.calls.length, 2);
+});
 
 test("session_start warns when project config is untrusted without forcing ask", async () => {
   const pi = build({ [PROJECT]: JSON.stringify({ defaultMode: "deny" }) });
