@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
 import { test } from "node:test";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import type { Config } from "../src/config/schema.ts";
@@ -84,6 +85,34 @@ test("default config: a backgrounded command does not hide a denied one", () => 
     pattern: "git push --force*",
     segment: "git push --force",
   });
+});
+
+for (const command of [
+  "sudo rm -rf x",
+  "doas rm -rf x",
+  "rm -fr x",
+  "rm -r -f x",
+  "rm -Rf x",
+  "rm --recursive --force x",
+  "cd build && sudo rm -fr dist",
+]) {
+  test("default config: rm spelling is denied: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+
+test("default config: a normalized rm names the normalized segment", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("rm -fr x"), CWD), {
+    outcome: "deny",
+    dimension: "bash",
+    pattern: "rm -rf *",
+    segment: "rm -rf x",
+  });
+});
+
+test("an allow spelled -fr does not escape an rm -rf deny", () => {
+  const config: Config = { ...base, bash: { deny: ["rm -rf *"], allow: ["rm -fr build"] } };
+  assert.equal(decide(config, bash("rm -fr build"), CWD).outcome, "deny");
 });
 
 test("default config: double spaces do not hide a denied command", () => {
@@ -341,6 +370,38 @@ test("default config: read of /etc/hosts is allowed, write is asked", () => {
     "ask",
   );
 });
+
+for (const [raw, resolved] of [
+  [".husky/pre-commit", "/repo/.husky/pre-commit"],
+  [".vscode/tasks.json", "/repo/.vscode/tasks.json"],
+  [".npmrc", "/repo/.npmrc"],
+] as const) {
+  test("default config: writing repo config asks: " + raw, () => {
+    assert.equal(decide(DEFAULT_CONFIG, file("write", raw, resolved), CWD).outcome, "ask");
+  });
+}
+
+for (const command of [
+  "echo x >> ~/.zshrc",
+  "echo x > ~/.bashrc",
+  "echo x | tee -a ~/.gitconfig",
+  "echo x >> ~/.npmrc",
+]) {
+  test("default config: shell write to home config asks: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "ask");
+  });
+}
+
+test("default config: a home config write names the path rule", () => {
+  const target = `${homedir()}/.zshrc`;
+  assert.equal(decide(DEFAULT_CONFIG, file("write", "~/.zshrc", target), CWD).pattern, "~/.zshrc");
+});
+
+for (const command of ["ls 2>/dev/null", "echo x > /tmp/out.txt"]) {
+  test("default config: ordinary redirects stay allowed: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "allow");
+  });
+}
 
 // --- shell path targets --------------------------------------------------
 

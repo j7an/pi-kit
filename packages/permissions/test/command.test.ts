@@ -78,6 +78,11 @@ test("commandCandidates: whole command first, then segments, deduplicated", () =
   assert.deepEqual(commandCandidates(""), []);
 });
 
+test("commandCandidates: an rm segment adds its normalized form last", () => {
+  assert.deepEqual(commandCandidates("sudo rm -fr x"), ["sudo rm -fr x", "rm -fr x", "rm -rf x"]);
+  assert.deepEqual(commandCandidates("rm -rf ."), ["rm -rf ."]);
+});
+
 test("commandCandidates: a bare prefix adds no candidate", () => {
   assert.deepEqual(commandCandidates("FOO=1"), ["FOO=1"]);
   assert.deepEqual(commandCandidates("nohup"), ["nohup"]);
@@ -160,6 +165,23 @@ const MATCH_CASES: Array<
   ["regex metacharacters are literal", "echo $HOME", "echo $HOME", "echo $HOME"],
   ["regex metacharacters are literal (negative)", "echo $HOME", "echo XHOME", undefined],
   ["star matches everything", "*", "anything at all", "anything at all"],
+  ["rm -fr normalizes", "rm -rf *", "rm -fr x", "rm -rf x"],
+  ["rm -Rf normalizes", "rm -rf *", "rm -Rf x", "rm -rf x"],
+  ["rm -fR normalizes", "rm -rf *", "rm -fR x", "rm -rf x"],
+  ["split short flags normalize", "rm -rf *", "rm -r -f x", "rm -rf x"],
+  ["extra flag in a cluster", "rm -rf *", "rm -rfv x", "rm -rf x"],
+  ["long flags normalize", "rm -rf *", "rm --recursive --force x", "rm -rf x"],
+  ["mixed short and long", "rm -rf *", "rm -r --force x", "rm -rf x"],
+  ["option after an operand", "rm -rf *", "rm x -rf", "rm -rf x"],
+  ["redirect before an operand is skipped", "rm -rf *", "rm -fr >/dev/null x", "rm -rf x"],
+  ["quoted operand with a space", "rm -rf *", 'rm -fr "my dir"', "rm -rf my dir"],
+  ["past sudo", "rm -rf *", "sudo rm -rf x", "rm -rf x"],
+  ["past doas", "rm -rf *", "doas rm -rf x", "rm -rf x"],
+  ["past sudo with a flag, then normalized", "rm -rf *", "sudo -E rm -fr x", "rm -rf x"],
+  ["recursive without force is not normalized", "rm -rf *", "rm -r x", undefined],
+  ["force without recursive is not normalized", "rm -rf *", "rm -f x", undefined],
+  ["-- ends options", "rm -rf *", "rm -- -rf", undefined],
+  ["ceiling: sudo flag values are not skipped", "rm -rf *", "sudo -u root rm -rf x", undefined],
 ];
 
 for (const [label, pattern, command, expected] of MATCH_CASES) {

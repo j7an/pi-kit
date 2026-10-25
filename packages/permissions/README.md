@@ -56,7 +56,21 @@ JSON, one file per scope. Every key is optional.
   "paths": {
     "appliesTo": ["write", "edit"],
     "deny": [".env", ".env.local", ".env.*.local", "**/.env", "**/.env.local"],
-    "ask": [".github/**", ".git/**", ".pi/**"],
+    "ask": [
+      ".github/**",
+      ".git/**",
+      ".pi/**",
+      ".husky/**",
+      ".vscode/**",
+      ".npmrc",
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.profile",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.gitconfig",
+      "~/.npmrc"
+    ],
     "allow": []
   }
 }
@@ -67,6 +81,8 @@ Under the defaults, `read /etc/hosts` is allowed (`read` is not in
 (the deny patterns are deliberately narrow).
 Writes under `.git/` (hooks run as code) and `.pi/` (project extensions and
 this package's own project config) ask.
+Writes under `.husky/` and `.vscode/`, to `.npmrc`, and to shell, git and npm
+config in your home folder also ask, including through shell redirects and `tee`.
 
 ### Keys
 
@@ -107,8 +123,14 @@ session. Fix it and start a new session.
    command. A piece can make the outcome stricter, never looser.
    Deny and ask also match each piece after collapsing whitespace and stripping
    leading `VAR=` assignments and the wrappers `timeout`, `time`, `nice`,
-   `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`.
+   `nohup`, `stdbuf`, `command`, `builtin`, `noglob`, `env`, `sudo`, `doas`.
    `allow` does not: `allow: ["npm test"]` does not cover `timeout 30 npm test`.
+   Flag values after a wrapper are not skipped, so `sudo -u root rm -rf x` is
+   not caught.
+   For `rm`, deny and ask also match a normalized form: short flags in any
+   cluster or order and the long forms `--recursive` and `--force` (`-fr`,
+   `-Rf`, `-r -f`, `--recursive --force`) read as `rm -rf`. Abbreviated long
+   options such as `--recur` are not recognised.
 4. **Shell path targets:** redirect targets and the file arguments of `cat`,
    `head`, `tail`, `sed` and `tee` are checked against `paths.deny` and
    `paths.ask` as the tool they imitate (`>` and `tee` = write, `sed -i` =
