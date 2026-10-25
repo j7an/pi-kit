@@ -264,6 +264,7 @@ test("loadConfig: a readFile that throws is a malformed scope", () => {
   });
   assert.equal(result.forcedAsk, true);
   assert.match(result.problems.join("\n"), /EACCES/);
+  assert.equal(result.layers[1]?.status, "invalid (ignored)");
 });
 
 test("loadConfig: malformed scope denies headless asks despite a valid sibling allowing them", () => {
@@ -277,4 +278,41 @@ test("loadConfig: malformed scope denies headless asks despite a valid sibling a
   assert.equal(result.config.defaultMode, "ask");
   assert.equal(result.config.headlessAsk, "deny");
   assert.ok(result.config.bash?.deny?.includes("curl *"));
+});
+
+test("loadConfig: reports three layers in order", () => {
+  const { layers } = load({});
+  assert.deepEqual(
+    layers.map((l) => [l.name, l.path, l.status]),
+    [
+      ["Built-in defaults", undefined, "loaded"],
+      ["Global", GLOBAL, "not found"],
+      ["Project", PROJECT, "not found"],
+    ],
+  );
+  assert.deepEqual(layers[0]?.config, DEFAULT_CONFIG);
+});
+
+test("loadConfig: a loaded layer carries its own config, not the merge", () => {
+  const global = { bash: { ask: ["curl *"] }, defaultMode: "ask" as const };
+  const project = { defaultMode: "allow" as const };
+  const { layers } = load({
+    files: { [GLOBAL]: JSON.stringify(global), [PROJECT]: JSON.stringify(project) },
+  });
+  assert.deepEqual(layers[1]?.config, global);
+  assert.deepEqual(layers[2]?.config, project);
+});
+
+test("loadConfig: a malformed scope is an invalid layer", () => {
+  const { layers } = load({ files: { [GLOBAL]: "{ nope" } });
+  assert.equal(layers[1]?.status, "invalid (ignored)");
+  assert.equal(layers[1]?.config, undefined);
+});
+
+test("loadConfig: an untrusted project layer is reported, never read", () => {
+  const present = load({ trusted: false, files: { [PROJECT]: "{}" } });
+  assert.equal(present.layers[2]?.status, "untrusted (not read)");
+  assert.equal(present.layers[2]?.config, undefined);
+  assert.ok(!present.reads.includes(PROJECT));
+  assert.equal(load({ trusted: false }).layers[2]?.status, "not found");
 });

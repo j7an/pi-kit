@@ -8,8 +8,9 @@ import {
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import { type LoadResult, loadConfig } from "../src/config/load.ts";
 import { decide, type PermissionRequest } from "../src/decide.ts";
-import { blockReason, gateErrorReason, promptUser } from "../src/prompt.ts";
+import { blockReason, describeRequest, gateErrorReason, promptUser } from "../src/prompt.ts";
 import { toRequest } from "../src/request.ts";
+import { formatStatus } from "../src/status.ts";
 
 const STATUS_KEY = "pi-kit-permissions";
 
@@ -26,7 +27,8 @@ function sessionKey(req: PermissionRequest): string {
 
 /** The testable gate. Only the default export binds Pi's real config and filesystem. */
 export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
-  const approvals = new Set<string>();
+  /** Session approval key → a readable description for /permissions. */
+  const approvals = new Map<string, string>();
   let loaded: LoadResult | undefined;
 
   function report(ctx: ExtensionContext, result: LoadResult): void {
@@ -69,6 +71,14 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
     loaded = load(ctx);
   });
 
+  pi.registerCommand("permissions", {
+    description: "Show the permission rules in force and where they come from",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      ctx.ui.notify(formatStatus(ensureLoaded(ctx), [...approvals.values()]), "info");
+    },
+  });
+
   pi.on("tool_call", async (event, ctx) => {
     let request: PermissionRequest;
     let decision: ReturnType<typeof decide>;
@@ -108,7 +118,7 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
 
       const answer = await promptUser(ctx.ui, request, decision);
       if (answer === "session") {
-        approvals.add(sessionKey(request));
+        approvals.set(sessionKey(request), describeRequest(request));
         return undefined;
       }
       if (answer === "once") return undefined;

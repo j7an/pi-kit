@@ -28,12 +28,22 @@ function recorder<T>(impl: (...args: unknown[]) => T) {
 
 function stubPi() {
   const handlers = new Map<string, Handler>();
+  const commands = new Map<string, Handler>();
   return {
-    api: { on: (event: string, handler: Handler) => handlers.set(event, handler) },
+    api: {
+      on: (event: string, handler: Handler) => handlers.set(event, handler),
+      registerCommand: (name: string, options: { handler: Handler }) =>
+        commands.set(name, options.handler),
+    },
     fire: (event: string, payload: unknown, ctx: unknown) => {
       const handler = handlers.get(event);
       if (!handler) throw new Error(`no handler registered for "${event}"`);
       return handler(payload, ctx);
+    },
+    command: (name: string, args: string, ctx: unknown) => {
+      const handler = commands.get(name);
+      if (!handler) throw new Error(`no command registered as "${name}"`);
+      return handler(args, ctx);
     },
     registered: () => [...handlers.keys()],
   };
@@ -459,4 +469,39 @@ test("gate failure blocks with gate_error", async () => {
   const result = (await pi.fire("tool_call", call("bash", { command: "ls" }), ctx)) as Block;
   assert.equal(result.block, true);
   assert.match(result.reason, /gate_error/);
+});
+
+const infoTexts = (ui: ReturnType<typeof stubUi>) =>
+  ui.notify.calls.filter(([, type]) => type === "info").map(([text]) => String(text));
+
+test("/permissions shows the loaded layers through notify", async () => {
+  const pi = build({ [GLOBAL]: JSON.stringify({ bash: { ask: ["curl *"] } }) });
+  const ctx = stubCtx();
+  await pi.fire("session_start", { type: "session_start" }, ctx);
+  await pi.command("permissions", "", ctx);
+  const [text = ""] = infoTexts(ctx.ui);
+  assert.ok(text.split("\n").includes(`Global  ${GLOBAL} — loaded`));
+  assert.match(text, /bash ask\s+curl \*/);
+});
+
+test("/permissions lists approvals granted for the session", async () => {
+  const pi = build();
+  const ctx = stubCtx({ ui: stubUi(ALLOW_SESSION) });
+  await pi.fire("tool_call", call("write", { path: "/etc/hosts" }), ctx);
+  await pi.command("permissions", "", ctx);
+  assert.match(infoTexts(ctx.ui)[0] ?? "", /Allowed for this session\n {2}write: \/etc\/hosts\n/);
+});
+
+test("/permissions loads the config when no session has started", async () => {
+  const pi = build();
+  const ctx = stubCtx();
+  await pi.command("permissions", "", ctx);
+  assert.equal(infoTexts(ctx.ui).length, 1);
+});
+
+test("/permissions does nothing without a UI", async () => {
+  const pi = build();
+  const ctx = stubCtx({ hasUI: false });
+  await pi.command("permissions", "", ctx);
+  assert.equal(ctx.ui.notify.calls.length, 0);
 });

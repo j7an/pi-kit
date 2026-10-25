@@ -156,6 +156,15 @@ These rows are executed by `test/decide.test.ts`.
 written) until the session ends; nothing is written to disk. It is consulted
 only after the rules return `ask`, so it never overrides a `deny`.
 
+### Status command
+
+`/permissions` shows the settings in force, then each configuration layer
+(built-in defaults, the global file, the project file) with its own rules and
+the file's path and status: `loaded`, `not found`, `invalid (ignored)` or
+`untrusted (not read)`. It also lists the requests allowed for this session
+and any config problems. It reflects the configuration loaded at session start,
+appears in the chat, and is not sent to the model.
+
 ## Recipes
 
 Gate reads too:
