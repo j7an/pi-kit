@@ -86,6 +86,34 @@ test("default config: a backgrounded command does not hide a denied one", () => 
   });
 });
 
+for (const command of [
+  "sudo rm -rf x",
+  "doas rm -rf x",
+  "rm -fr x",
+  "rm -r -f x",
+  "rm -Rf x",
+  "rm --recursive --force x",
+  "cd build && sudo rm -fr dist",
+]) {
+  test("default config: rm spelling is denied: " + JSON.stringify(command), () => {
+    assert.equal(decide(DEFAULT_CONFIG, bash(command), CWD).outcome, "deny");
+  });
+}
+
+test("default config: a normalized rm names the normalized segment", () => {
+  assert.deepEqual(decide(DEFAULT_CONFIG, bash("rm -fr x"), CWD), {
+    outcome: "deny",
+    dimension: "bash",
+    pattern: "rm -rf *",
+    segment: "rm -rf x",
+  });
+});
+
+test("an allow spelled -fr does not escape an rm -rf deny", () => {
+  const config: Config = { ...base, bash: { deny: ["rm -rf *"], allow: ["rm -fr build"] } };
+  assert.equal(decide(config, bash("rm -fr build"), CWD).outcome, "deny");
+});
+
 test("default config: double spaces do not hide a denied command", () => {
   assert.equal(decide(DEFAULT_CONFIG, bash("rm  -rf dist"), CWD).outcome, "deny");
 });

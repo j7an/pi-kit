@@ -170,6 +170,7 @@ function shellWords(segment: string): Word[] {
 }
 
 // Deny/ask only: generic skipping can over-strip, which only adds a candidate. Allow needs exact per-wrapper parsing.
+// Ceiling: flag values are not skipped (sudo -u root …); parse sudo's arguments if that form matters.
 const WRAPPERS = new Set([
   "timeout",
   "time",
@@ -180,6 +181,8 @@ const WRAPPERS = new Set([
   "builtin",
   "noglob",
   "env",
+  "sudo",
+  "doas",
 ]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const WRAPPER_ARG = /^-|^\d|^[A-Z]+$/;
@@ -207,6 +210,44 @@ function stripPrefixes(segment: string): string | undefined {
     break;
   }
   return 0 < i && i < words.length ? segment.slice((words[i] as Word).start) : undefined;
+}
+
+/**
+ * Rewrites an `rm` segment with recursive and force flags in any spelling or
+ * order as `rm -rf <operands>`. Options may follow operands (GNU permutation)
+ * until `--`; redirect operators and their targets are skipped. Deny/ask only.
+ */
+function normalizeRm(segment: string): string | undefined {
+  const words = shellWords(segment);
+  if (words[0]?.value !== "rm") return undefined;
+  let recursive = false;
+  let force = false;
+  let optionsDone = false;
+  let skipNext = false;
+  const operands: string[] = [];
+  for (const word of words.slice(1)) {
+    if (word.op) {
+      skipNext = true;
+      continue;
+    }
+    if (skipNext) {
+      skipNext = false;
+      continue;
+    }
+    const value = word.value;
+    if (!optionsDone && value === "--") {
+      optionsDone = true;
+    } else if (!optionsDone && value.startsWith("--")) {
+      recursive ||= value === "--recursive";
+      force ||= value === "--force";
+    } else if (!optionsDone && value.length > 1 && value.startsWith("-")) {
+      recursive ||= /[rR]/.test(value);
+      force ||= value.includes("f");
+    } else {
+      operands.push(value);
+    }
+  }
+  return recursive && force ? ["rm -rf", ...operands].join(" ") : undefined;
 }
 
 /**
@@ -252,7 +293,8 @@ export function shellPathTargets(
 
 /**
  * Everything a `bash` pattern is matched against: the whole trimmed command
- * first, then each segment and its prefix-stripped form. Deduplicated.
+ * first, then each segment, its prefix-stripped form, and for `rm` a
+ * normalized `rm -rf` form. Deduplicated.
  * Extra candidates are for deny/ask only.
  */
 export function commandCandidates(command: string): string[] {
@@ -263,6 +305,8 @@ export function commandCandidates(command: string): string[] {
     candidates.add(segment);
     const stripped = stripPrefixes(segment);
     if (stripped !== undefined) candidates.add(stripped);
+    const normalized = normalizeRm(stripped ?? segment);
+    if (normalized !== undefined) candidates.add(normalized);
   }
   return [...candidates];
 }
