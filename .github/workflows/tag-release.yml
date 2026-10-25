@@ -1,4 +1,4 @@
-name: Tag Release
+name: Tag Release (permissions)
 
 on:
   workflow_dispatch:
