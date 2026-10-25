@@ -114,3 +114,11 @@ test("restoreApprovals: ignores malformed, foreign and other-cwd entries", () =>
   ];
   assert.deepEqual(restoreApprovals(bad, "/repo"), []);
 });
+
+test("isApproved: leading whitespace bash does not strip is part of the command name", () => {
+  const saved = [prefix("bash", "git push")];
+  for (const lead of [" ", "﻿", " "]) {
+    assert.equal(isApproved(saved, bash(`${lead}git push x`)), false, JSON.stringify(lead));
+    assert.equal(commandPrefix(`${lead}git push x`), undefined, JSON.stringify(lead));
+  }
+});

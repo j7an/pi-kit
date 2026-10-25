@@ -27,8 +27,9 @@ const UNSAFE = /[;&|<>$`(){}\\\n\r]/;
 const COMMAND_NAME = /^\w[\w.+-]*$/;
 const SUBCOMMAND = /^[A-Za-z][A-Za-z0-9-]*$/;
 
+/** Splits on the shell's blanks only; `trim()` would also strip NBSP and BOM, which bash keeps. */
 function words(command: string): string[] {
-  return command.trim().split(/[ \t]+/);
+  return command.replace(/^[ \t]+|[ \t]+$/g, "").split(/[ \t]+/);
 }
 
 export function requestKey(req: PermissionRequest): string {
