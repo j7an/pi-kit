@@ -5,6 +5,13 @@ import {
   type ExtensionContext,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import {
+  APPROVAL_ENTRY,
+  type Approval,
+  isApproved,
+  requestKey,
+  restoreApprovals,
+} from "../src/approvals.ts";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import { type LoadResult, loadConfig } from "../src/config/load.ts";
 import { decide, type PermissionRequest } from "../src/decide.ts";
@@ -21,14 +28,10 @@ export type ExtensionDeps = {
   readFile: (path: string) => string | undefined;
 };
 
-function sessionKey(req: PermissionRequest): string {
-  return `${req.tool}\0${req.command ?? ""}\0${req.rawPaths.join("\0")}`;
-}
-
 /** The testable gate. Only the default export binds Pi's real config and filesystem. */
 export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
-  /** Session approval key → a readable description for /permissions. */
-  const approvals = new Map<string, string>();
+  /** This session's approvals, restored from its entries on session_start. */
+  let approvals: Approval[] = [];
   let loaded: LoadResult | undefined;
 
   function report(ctx: ExtensionContext, result: LoadResult): void {
@@ -65,8 +68,21 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
     return loaded;
   }
 
+  /** Remembers an approval and saves it; a failed save still lets the call run. */
+  function record(ctx: ExtensionContext, approval: Approval): void {
+    approvals.push(approval);
+    try {
+      pi.appendEntry(APPROVAL_ENTRY, approval);
+    } catch (error) {
+      ctx.ui.notify(
+        `pi-kit permissions: approval not saved, so it may not survive a reload or restart: ${String(error)}`,
+        "warning",
+      );
+    }
+  }
+
   pi.on("session_start", async (_event, ctx) => {
-    approvals.clear();
+    approvals = restoreApprovals(ctx.sessionManager.getEntries(), ctx.cwd);
     loaded = undefined;
     loaded = load(ctx);
   });
@@ -75,7 +91,13 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
     description: "Show the permission rules in force and where they come from",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
-      ctx.ui.notify(formatStatus(ensureLoaded(ctx), [...approvals.values()]), "info");
+      ctx.ui.notify(
+        formatStatus(
+          ensureLoaded(ctx),
+          approvals.map((approval) => approval.description),
+        ),
+        "info",
+      );
     },
   });
 
@@ -105,7 +127,7 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
     }
 
     try {
-      if (approvals.has(sessionKey(request))) return undefined;
+      if (isApproved(approvals, request)) return undefined;
 
       if (!ctx.hasUI) {
         const headlessAsk = state.config.headlessAsk ?? DEFAULT_CONFIG.headlessAsk;
@@ -118,12 +140,29 @@ export function createExtension(pi: ExtensionAPI, deps: ExtensionDeps): void {
 
       const answer = await promptUser(ctx.ui, request, decision);
       if (answer === "session") {
-        approvals.set(sessionKey(request), describeRequest(request));
+        record(ctx, {
+          kind: "exact",
+          tool: request.tool,
+          value: requestKey(request),
+          description: describeRequest(request),
+          cwd: ctx.cwd,
+        });
+        return undefined;
+      }
+      if (typeof answer === "object" && "prefix" in answer) {
+        record(ctx, {
+          kind: "prefix",
+          tool: request.tool,
+          value: answer.prefix,
+          description: `${request.tool}: ${answer.prefix} …`,
+          cwd: ctx.cwd,
+        });
         return undefined;
       }
       if (answer === "once") return undefined;
 
-      const note = typeof answer === "object" ? ` The user said: ${answer.note}` : "";
+      const note =
+        typeof answer === "object" && "note" in answer ? ` The user said: ${answer.note}` : "";
       return {
         block: true,
         reason: `${blockReason(decision, request, {

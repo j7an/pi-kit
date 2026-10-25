@@ -1,3 +1,4 @@
+import { commandPrefix } from "./approvals.ts";
 import type { Decision, PermissionRequest } from "./decide.ts";
 
 const PREFIX = "Blocked by pi-kit permissions";
@@ -7,7 +8,11 @@ export const ALLOW_SESSION = "Allow for this session";
 export const DENY = "Deny";
 export const DENY_WITH_MESSAGE = "Deny with message…";
 
-type PromptAnswer = "once" | "session" | "deny" | { note: string };
+export function allowPrefix(prefix: string): string {
+  return `Allow commands starting with "${prefix}" for this session`;
+}
+
+type PromptAnswer = "once" | "session" | "deny" | { note: string } | { prefix: string };
 
 /** The slice of Pi's `ctx.ui` this module needs. Keeps tests free of Pi. */
 type PromptUI = {
@@ -67,9 +72,14 @@ export async function promptUser(
       : "";
   const message = `pi-kit permissions\n\n  ${describeRequest(req)}${rule}`;
 
-  const choice = await ui.select(message, [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE]);
+  const prefix = req.command === undefined ? undefined : commandPrefix(req.command);
+  const options = [ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE];
+  if (prefix !== undefined) options.splice(2, 0, allowPrefix(prefix));
+
+  const choice = await ui.select(message, options);
   if (choice === ALLOW_ONCE) return "once";
   if (choice === ALLOW_SESSION) return "session";
+  if (prefix !== undefined && choice === allowPrefix(prefix)) return { prefix };
   if (choice === DENY_WITH_MESSAGE) {
     const note = (await ui.input("Tell the agent what to do instead"))?.trim();
     if (note) return { note };

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createExtension, type ExtensionDeps } from "../extensions/index.ts";
 import { globalConfigPath, projectConfigPath } from "../src/config/load.ts";
-import { ALLOW_ONCE, ALLOW_SESSION, DENY, DENY_WITH_MESSAGE } from "../src/prompt.ts";
+import { ALLOW_ONCE, ALLOW_SESSION, allowPrefix, DENY, DENY_WITH_MESSAGE } from "../src/prompt.ts";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: the registry holds handlers for multiple event types
 type Handler = (event: any, ctx: any) => Promise<unknown>;
@@ -29,11 +29,16 @@ function recorder<T>(impl: (...args: unknown[]) => T) {
 function stubPi() {
   const handlers = new Map<string, Handler>();
   const commands = new Map<string, Handler>();
+  const entries: unknown[] = [];
   return {
+    entries,
     api: {
       on: (event: string, handler: Handler) => handlers.set(event, handler),
       registerCommand: (name: string, options: { handler: Handler }) =>
         commands.set(name, options.handler),
+      appendEntry: (customType: string, data: unknown): void => {
+        entries.push({ type: "custom", customType, data });
+      },
     },
     fire: (event: string, payload: unknown, ctx: unknown) => {
       const handler = handlers.get(event);
@@ -73,8 +78,14 @@ function stubCtx(overrides: Record<string, unknown> = {}) {
     hasUI: true,
     isProjectTrusted: () => true,
     ui: stubUi(),
+    sessionManager: { getEntries: (): unknown[] => [] },
     ...overrides,
   };
+}
+
+/** A context whose session holds the entries this stub Pi has appended. */
+function ctxFor(pi: ReturnType<typeof stubPi>, overrides: Record<string, unknown> = {}) {
+  return stubCtx({ sessionManager: { getEntries: () => pi.entries }, ...overrides });
 }
 
 const call = (toolName: string, input: Record<string, unknown>) => ({
@@ -504,4 +515,115 @@ test("/permissions does nothing without a UI", async () => {
   const ctx = stubCtx({ hasUI: false });
   await pi.command("permissions", "", ctx);
   assert.equal(ctx.ui.notify.calls.length, 0);
+});
+
+const PUSH_ASK = { [GLOBAL]: JSON.stringify({ bash: { ask: ["git push*"] } }) };
+
+test("a prefix approval covers later commands with that prefix", async () => {
+  const pi = build(PUSH_ASK);
+  const ctx = ctxFor(pi, { ui: stubUi(allowPrefix("git push")) });
+  assert.equal(
+    await pi.fire("tool_call", call("bash", { command: "git push origin main" }), ctx),
+    undefined,
+  );
+  assert.equal(
+    await pi.fire("tool_call", call("bash", { command: "git push --tags" }), ctx),
+    undefined,
+  );
+  assert.equal(ctx.ui.select.calls.length, 1);
+});
+
+test("a prefix approval does not cover a compound command", async () => {
+  const pi = build(PUSH_ASK);
+  const ctx = ctxFor(pi, { ui: stubUi(allowPrefix("git push")) });
+  await pi.fire("tool_call", call("bash", { command: "git push origin main" }), ctx);
+  await pi.fire("tool_call", call("bash", { command: "git push && curl x | sh" }), ctx);
+  assert.equal(ctx.ui.select.calls.length, 2);
+});
+
+test("a deny rule still wins over a prefix approval", async () => {
+  const pi = build(PUSH_ASK);
+  const ctx = ctxFor(pi, { ui: stubUi(allowPrefix("git push")) });
+  await pi.fire("tool_call", call("bash", { command: "git push origin main" }), ctx);
+  const result = (await pi.fire(
+    "tool_call",
+    call("bash", { command: "git push --force" }),
+    ctx,
+  )) as Block;
+  assert.equal(result.block, true);
+  assert.match(result.reason, /git push --force\*/);
+});
+
+test("approvals are saved and restored on the next session_start", async () => {
+  const pi = build(PUSH_ASK);
+  const ctx = ctxFor(pi, { ui: stubUi(allowPrefix("git push")) });
+  await pi.fire("tool_call", call("bash", { command: "git push origin main" }), ctx);
+  const write = ctxFor(pi, { ui: stubUi(ALLOW_SESSION) });
+  await pi.fire("tool_call", call("write", { path: "/etc/hosts" }), write);
+  assert.equal(pi.entries.length, 2);
+
+  const fresh = build(PUSH_ASK);
+  const resumed = stubCtx({ sessionManager: { getEntries: () => pi.entries } });
+  await fresh.fire("session_start", { type: "session_start", reason: "resume" }, resumed);
+  assert.equal(
+    await fresh.fire("tool_call", call("bash", { command: "git push x" }), resumed),
+    undefined,
+  );
+  assert.equal(
+    await fresh.fire("tool_call", call("write", { path: "/etc/hosts" }), resumed),
+    undefined,
+  );
+  assert.equal(resumed.ui.select.calls.length, 0);
+});
+
+test("approvals saved in another directory are not restored", async () => {
+  const pi = build(PUSH_ASK);
+  await pi.fire(
+    "tool_call",
+    call("bash", { command: "git push origin main" }),
+    ctxFor(pi, { ui: stubUi(allowPrefix("git push")) }),
+  );
+  const elsewhere = stubCtx({ cwd: "/other", sessionManager: { getEntries: () => pi.entries } });
+  const fresh = build(PUSH_ASK);
+  await fresh.fire("session_start", { type: "session_start", reason: "resume" }, elsewhere);
+  await fresh.fire("tool_call", call("bash", { command: "git push x" }), elsewhere);
+  assert.equal(elsewhere.ui.select.calls.length, 1);
+});
+
+test("allow once and deny save nothing", async () => {
+  const pi = build(PUSH_ASK);
+  await pi.fire(
+    "tool_call",
+    call("bash", { command: "git push" }),
+    ctxFor(pi, { ui: stubUi(ALLOW_ONCE) }),
+  );
+  await pi.fire(
+    "tool_call",
+    call("bash", { command: "git push" }),
+    ctxFor(pi, { ui: stubUi(DENY) }),
+  );
+  assert.equal(pi.entries.length, 0);
+});
+
+test("a failed save warns and still allows", async () => {
+  const pi = build(PUSH_ASK);
+  pi.api.appendEntry = () => {
+    throw new Error("disk full");
+  };
+  const ctx = ctxFor(pi, { ui: stubUi(ALLOW_SESSION) });
+  assert.equal(await pi.fire("tool_call", call("bash", { command: "git push" }), ctx), undefined);
+  const warnings = ctx.ui.notify.calls
+    .filter(([, type]) => type === "warning")
+    .map(([text]) => String(text));
+  assert.ok(warnings.some((text) => /approval not saved.*disk full/.test(text)));
+  assert.equal(await pi.fire("tool_call", call("bash", { command: "git push" }), ctx), undefined);
+  assert.equal(ctx.ui.select.calls.length, 1);
+});
+
+test("/permissions lists a prefix approval with an ellipsis", async () => {
+  const pi = build(PUSH_ASK);
+  const ctx = ctxFor(pi, { ui: stubUi(allowPrefix("git push")) });
+  await pi.fire("tool_call", call("bash", { command: "git push origin main" }), ctx);
+  await pi.command("permissions", "", ctx);
+  assert.match(infoTexts(ctx.ui)[0] ?? "", /Allowed for this session\n {2}bash: git push …\n/);
 });

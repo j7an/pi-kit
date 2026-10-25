@@ -18,8 +18,9 @@ Restart Pi. With no configuration, the [defaults](#defaults) apply.
 Every tool call resolves to one outcome:
 
 - **allow** — the call runs.
-- **ask** — you choose *Allow once*, *Allow for this session*, *Deny*, or
-  *Deny with message…*, which asks for a note and passes it to the model with
+- **ask** — you choose *Allow once*, *Allow for this session*,
+  *Allow commands starting with "…" for this session* (shell commands only),
+  *Deny*, or *Deny with message…*, which asks for a note and passes it to the model with
   the block reason (an empty note is a plain *Deny*).
   With no UI (`pi -p`), `ask` becomes `headlessAsk`, which defaults to `deny`.
 - **deny** — the call is blocked and the model is told which rule fired.
@@ -153,8 +154,18 @@ These rows are executed by `test/decide.test.ts`.
 ### Session approvals
 
 *Allow for this session* remembers the exact request (tool, command, paths as
-written) until the session ends; nothing is written to disk. It is consulted
-only after the rules return `ask`, so it never overrides a `deny`.
+written). For `bash` and `powershell`, *Allow commands starting with "…"*
+remembers a prefix instead: the command name plus a subcommand-like second
+word, so `git push origin main` offers `git push`. A prefix covers that prefix
+followed by any arguments, but only when the command contains none of
+`` ; & | < > $ ` ( ) { } \ ``, a newline or a carriage return; anything else
+prompts as usual.
+
+Approvals are saved in the Pi session file and restored on reload and resume
+of that session, in the same directory; deleting the session deletes them.
+*Allow once* and *Deny* are not saved. If saving fails, the approval still
+applies, with a warning. Approvals are consulted only after the rules return
+`ask`, so they never override a `deny`.
 
 ### Status command
 
