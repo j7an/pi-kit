@@ -21,12 +21,24 @@ export function projectConfigPath(cwd: string, configDirName: string): string {
   return join(cwd, configDirName, "extensions", CONFIG_FILE);
 }
 
+/** One configuration source as read, for display. Rule lists union, so the layers together are the rules in force. */
+type Layer = {
+  name: "Built-in defaults" | "Global" | "Project";
+  /** Absolute file path; absent for the built-in defaults. */
+  path?: string;
+  status: "loaded" | "not found" | "invalid (ignored)" | "untrusted (not read)";
+  /** The layer's own parsed config, as written; only when status is "loaded". */
+  config?: Config;
+};
+
 export type LoadResult = {
   config: Config;
   /** Human-readable problems to surface at startup. Empty when all is well. */
   problems: string[];
   /** True when any scope was malformed; asks then require an interactive UI. */
   forcedAsk: boolean;
+  /** Defaults, global, project, in that order. */
+  layers: Layer[];
 };
 
 type LoadOptions = {
@@ -41,6 +53,11 @@ type LoadOptions = {
 };
 
 type ScopeOutcome = { kind: "absent" } | { kind: "valid"; config: Config } | { kind: "malformed" };
+
+function fileLayer(name: "Global" | "Project", path: string, outcome: ScopeOutcome): Layer {
+  if (outcome.kind === "valid") return { name, path, status: "loaded", config: outcome.config };
+  return { name, path, status: outcome.kind === "absent" ? "not found" : "invalid (ignored)" };
+}
 
 function readScope(
   path: string,
@@ -159,12 +176,19 @@ export function loadConfig(opts: LoadOptions): LoadResult {
     if (outcome.kind === "malformed") forcedAsk = true;
   };
 
-  apply(readScope(globalConfigPath(opts.agentDir), opts.readFile, problems));
+  const globalPath = globalConfigPath(opts.agentDir);
+  const globalOutcome = readScope(globalPath, opts.readFile, problems);
+  apply(globalOutcome);
+  const layers: Layer[] = [
+    { name: "Built-in defaults", status: "loaded", config: DEFAULT_CONFIG },
+    fileLayer("Global", globalPath, globalOutcome),
+  ];
 
   const projectPath = projectConfigPath(opts.cwd, opts.configDirName);
   if (opts.trusted) {
     const outcome = readScope(projectPath, opts.readFile, problems);
     apply(outcome, true);
+    layers.push(fileLayer("Project", projectPath, outcome));
     if (outcome.kind === "valid") {
       for (const key of ["defaultMode", "headlessAsk", "outsideCwd"] as const) {
         const value = outcome.config[key];
@@ -180,6 +204,9 @@ export function loadConfig(opts: LoadOptions): LoadResult {
     // attacker-authored content; knowing it is there is enough to report the
     // skip.
     problems.push(`${projectPath}: ignored because the project is untrusted`);
+    layers.push({ name: "Project", path: projectPath, status: "untrusted (not read)" });
+  } else {
+    layers.push({ name: "Project", path: projectPath, status: "not found" });
   }
 
   if (forcedAsk) {
@@ -189,5 +216,5 @@ export function loadConfig(opts: LoadOptions): LoadResult {
     );
   }
 
-  return { config, problems, forcedAsk };
+  return { config, problems, forcedAsk, layers };
 }
