@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write # GitHub Release, created by the reusable workflow
       id-token: write # npm trusted publishing; needed on the caller too
-    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@0cfe3ca15c18d38525bf950c029ada77805a9578 # v4.12.1
+    uses: j7an/shared-workflows/.github/workflows/publish-npm.yml@1084a4b6feef47a301967f12524f40be73295ea4 # v4.12.2
     with:
       tag: ${{ github.ref_name }}
       package-name: "@pi-kit/rewind"
