@@ -22,5 +22,5 @@
     "typebox": "1.4.3",
     "typescript": "7.0.2"
   },
-  "packageManager": "pnpm@12.16.1"
+  "packageManager": "pnpm@12.18.0"
 }
