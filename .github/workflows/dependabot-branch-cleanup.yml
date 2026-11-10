@@ -1,0 +1,52 @@
+name: Dependabot Branch Cleanup
+
+# Dependency Safety merges Dependabot PRs with GITHUB_TOKEN auto-merge, which
+# does not trigger the repo's "Automatically delete head branches" setting.
+# Dependabot deletes some of its own branches after merge, but not all. Merges
+# made with GITHUB_TOKEN start no workflow runs, so a `pull_request: closed`
+# trigger would never fire; a scheduled sweep is the only reliable hook.
+
+on:
+  schedule:
+    - cron: "23 9 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dependabot-branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Delete merged Dependabot branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Delete a branch only when it has no open PR and its tip is exactly
+          # the head of a merged PR, so a branch Dependabot has reused or
+          # pushed to since the merge is left alone.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/dependabot/" \
+            --jq '.[] | "\(.ref | ltrimstr("refs/heads/"))\t\(.object.sha)"' |
+          while IFS=$'\t' read -r branch sha; do
+            verdict=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all \
+              --json state,headRefOid |
+              jq -r --arg sha "$sha" \
+                'if any(.[]; .state == "OPEN") then "open"
+                 elif any(.[]; .state == "MERGED" and .headRefOid == $sha) then "merged"
+                 else "no merged PR at tip" end')
+            if [ "$verdict" = "merged" ]; then
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+              echo "Deleted $branch"
+            else
+              echo "Kept $branch ($verdict)"
+            fi
+          done
