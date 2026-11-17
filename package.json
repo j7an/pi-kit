@@ -15,8 +15,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
-    "@earendil-works/pi-coding-agent": "1.5.0",
-    "@earendil-works/pi-tui": "1.5.0",
+    "@earendil-works/pi-coding-agent": "1.5.1",
+    "@earendil-works/pi-tui": "1.5.1",
     "@types/node": "26.6.6",
     "knip": "6.44.1",
     "typebox": "1.4.3",
