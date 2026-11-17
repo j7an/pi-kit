@@ -14,12 +14,12 @@
     "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.6.6",
     "@earendil-works/pi-coding-agent": "1.5.1",
     "@earendil-works/pi-tui": "1.5.1",
     "@types/node": "26.6.6",
-    "knip": "6.44.1",
-    "typebox": "1.4.3",
+    "knip": "6.44.2",
+    "typebox": "1.4.6",
     "typescript": "7.0.2"
   },
   "packageManager": "pnpm@12.20.0"
