@@ -34,7 +34,10 @@ const tags = lines(git("tag", "-l", `${short}/v*`, "--merged", "HEAD"))
 
 const FIRST = "- First release.";
 const entries = tags.map(({ tag, version }, index) => {
-  const heading = `## [${version}] - ${git("log", "-1", "--format=%cs", tag)}`;
+  const date = git("log", "-1", "--format=%cs", tag);
+  // A git setting such as log.showSignature adds lines here; refuse them rather than publish them.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`unexpected date for ${tag}: ${date}`);
+  const heading = `## [${version}] - ${date}`;
   if (index === 0) return `${heading}\n\n${FIRST}`;
   // ponytail: version order equals ancestry here because tag-release always tags main's
   // head with the next version; pick the nearest ancestor tag instead if release branches appear.

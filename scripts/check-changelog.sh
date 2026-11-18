@@ -30,6 +30,7 @@ case "$1 $2" in
     [ "$CASE" = untagged ] && exit 0
     printf '%s\\n' demo/v1.2.0 demo/v1.10.0 demo/v1.0.0 demo/v2.0.0-beta.1 demo/vnext demo/v1.1.0 ;;
   'log -1')
+    [ "$CASE" = signed ] && echo 'gpg: Signature made Sat Oct 24 23:26:45 2026 PDT'
     case "$4" in
       demo/v1.0.0) echo 2026-01-01 ;;
       demo/v1.1.0) echo 2026-02-02 ;;
@@ -114,11 +115,17 @@ assert.equal(shallow.status, 1);
 assert.match(shallow.stderr, /full history/);
 assert.equal(shallow.changelog, "stale\n");
 
+// log.showSignature and similar settings add lines to git's output.
+const signed = run("signed");
+assert.equal(signed.status, 1);
+assert.match(signed.stderr, /unexpected date/);
+assert.equal(signed.changelog, "stale\n");
+
 scope("");
 const unscoped = run("released");
 assert.equal(unscoped.status, 1);
 assert.match(unscoped.stderr, /publish-demo\.yml/);
 assert.equal(unscoped.changelog, "stale\n");
 
-console.log("Changelog checks passed (released, untagged, shallow, unscoped)");
+console.log("Changelog checks passed (released, untagged, shallow, signed, unscoped)");
 NODE
