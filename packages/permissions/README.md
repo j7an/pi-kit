@@ -1,6 +1,6 @@
 # @pi-kit/permissions
 
-An allow / ask / deny guardrail for the Pi coding agent's built-in tools. No
+An allow / ask / deny guardrail for the Pi coding agent's tools, built-in and MCP. No
 third-party runtime dependencies, no build step, small enough to read before you install
 it. It guards against agent mistakes; it is not a sandbox (see
 [Limitations](#limitations)).
@@ -31,7 +31,7 @@ Rules match on four dimensions:
 |---|---|---|
 | `bash` | the command of `bash` and `powershell` | anchored; `*` matches anything, including spaces and `/` |
 | `paths` | path inputs of the tools in `paths.appliesTo` | anchored; `*` stays within a segment, `**` crosses; `~` expands; relative patterns resolve against cwd; checked against the path as written and its absolute form |
-| `tools` | the tool name | exact, or `*` |
+| `tools` | the tool name | exact, or `*` matches any characters |
 | `outsideCwd` | any path outside cwd, for the tools in `paths.appliesTo` | a single `allow` / `ask` / `deny` |
 
 ## Configuration
@@ -158,7 +158,9 @@ These rows are executed by `test/decide.test.ts`.
 ### Session approvals
 
 *Allow for this session* remembers the exact request (tool, command, paths as
-written). For `bash` and `powershell`, *Allow commands starting with "…"*
+written). For a tool with no command or path, such as an MCP tool, that is the
+tool name alone, so the approval covers every later call to that tool, whatever
+its arguments. For `bash` and `powershell`, *Allow commands starting with "…"*
 remembers a prefix instead: the command name plus a subcommand-like second
 word, so `git push origin main` offers `git push`. A prefix covers that prefix
 followed by any arguments, but only when the command contains none of
@@ -200,6 +202,25 @@ Ask before git and network operations:
 { "bash": { "ask": ["git push*", "git rebase*", "curl *", "wget *", "npm install*"] } }
 ```
 
+Ask before the tools of one MCP server, matched by name prefix, and block its
+delete tools:
+
+```json
+{ "tools": { "deny": ["mcp__github__delete_*"], "ask": ["mcp__github__*"] } }
+```
+
+- Rules match the name Pi registers a tool under, `mcp__<server>__<tool>`,
+  built from the server's configured name and the tool name the server offers.
+  In both, every character other than letters, digits and `_` becomes `_`, so
+  server `dev-radius` is written `mcp__dev_radius__*`. `/mcp` lists the tool
+  name the server offers, not the registered name.
+- The pattern matches a name prefix, not a server: `mcp__github__*` also
+  matches the tools of a server whose name starts with `github__`, such as
+  `github__prod`.
+- Pi shortens a registered name longer than 64 characters and adds a hash
+  suffix, so a `mcp__<server>__*` rule can miss the tools of a server whose
+  name is about 50 characters or longer.
+
 Ask by default, allowing only these exact commands:
 
 ```json
@@ -223,6 +244,10 @@ enforcement, run Pi in a container or an OS sandbox.
 - **Not parsed:** text inside subshells; `$HOME` in paths; a relative path
   after `cd` (it still resolves against cwd); `cp`/`mv` destinations; heredoc
   bodies, which are scanned like commands and can over-match; symlinks.
+- **MCP resources:** Pi's resource tools `read_mcp_resource`,
+  `list_mcp_resources` and `list_mcp_resource_templates` reach every server and
+  are not covered by `mcp__*` or a `mcp__<server>__*` rule; deny them by exact name to block
+  resources from all servers.
 - **RPC clients** receive `ask` as an extension UI request and must answer it;
   an unanswered request leaves the tool call waiting (cancel = deny).
 

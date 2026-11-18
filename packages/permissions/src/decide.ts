@@ -3,6 +3,7 @@ import { resolvePath } from "@pi-kit/shared/path";
 import { DEFAULT_CONFIG } from "./config/defaults.ts";
 import { type Config, type Mode, RANK, type RuleSet } from "./config/schema.ts";
 import { matchCommand, shellPathTargets } from "./match/command.ts";
+import { globToRegExp } from "./match/glob.ts";
 import { isOutsideCwd, matchPath } from "./match/path.ts";
 
 type Dimension = "tools" | "bash" | "paths" | "outsideCwd";
@@ -77,10 +78,8 @@ export function decide(config: Config, req: PermissionRequest, cwd: string): Dec
   const matches: Match[] = [];
   let stricter: Match | undefined;
 
-  const toolMatch = matchRuleSet(
-    config.tools,
-    "tools",
-    (pattern) => pattern === "*" || pattern === req.tool,
+  const toolMatch = matchRuleSet(config.tools, "tools", (pattern) =>
+    globToRegExp(pattern, { crossSegment: true }).test(req.tool),
   );
   if (toolMatch) matches.push(toolMatch);
 

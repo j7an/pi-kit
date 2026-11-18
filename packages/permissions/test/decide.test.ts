@@ -20,6 +20,8 @@ const file = (tool: string, raw: string, resolved: string): PermissionRequest =>
   rawPaths: [raw],
 });
 
+const call = (tool: string): PermissionRequest => ({ tool, paths: [], rawPaths: [] });
+
 const base: Config = { defaultMode: "allow", outsideCwd: "allow" };
 
 // --- defaults ------------------------------------------------------------
@@ -199,6 +201,63 @@ test("tools: matches on tool name", () => {
 test("tools: supports a wildcard", () => {
   const config: Config = { ...base, tools: { ask: ["*"] } };
   assert.equal(decide(config, bash("ls"), CWD).outcome, "ask");
+});
+
+test("tools: a server pattern matches names with that prefix only", () => {
+  const config: Config = { ...base, tools: { deny: ["mcp__git__*"] } };
+  assert.deepEqual(decide(config, call("mcp__git__commit"), CWD), {
+    outcome: "deny",
+    dimension: "tools",
+    pattern: "mcp__git__*",
+  });
+  assert.equal(decide(config, call("mcp__github__get_issue"), CWD).outcome, "allow");
+  assert.equal(decide(config, call("bash"), CWD).outcome, "allow");
+});
+
+test("tools: mcp__* matches server tools and not built-in tools", () => {
+  const config: Config = { ...base, tools: { ask: ["mcp__*"] } };
+  assert.equal(decide(config, call("mcp__github__get_issue"), CWD).outcome, "ask");
+  assert.equal(decide(config, call("read_mcp_resource"), CWD).outcome, "allow");
+  assert.equal(decide(config, bash("ls"), CWD).outcome, "allow");
+});
+
+test("tools: * matches any characters anywhere in the pattern", () => {
+  const config: Config = {
+    ...base,
+    tools: { deny: ["*__delete_*"], ask: ["mcp__github__get_*"] },
+  };
+  assert.equal(decide(config, call("mcp__github__delete_repo"), CWD).outcome, "deny");
+  assert.equal(decide(config, call("mcp__github__get_issue"), CWD).outcome, "ask");
+  assert.equal(decide(config, call("mcp__github__list_issues"), CWD).outcome, "allow");
+});
+
+test("tools: * matches between two literal parts", () => {
+  const config: Config = { ...base, tools: { deny: ["mcp__*__status"] } };
+  assert.equal(decide(config, call("mcp__git__status"), CWD).outcome, "deny");
+  assert.equal(decide(config, call("mcp__git__status_extra"), CWD).outcome, "allow");
+});
+
+test("tools: a pattern without * stays exact and literal", () => {
+  const config: Config = { ...base, tools: { deny: ["write", "rea.", ""] } };
+  assert.equal(decide(config, call("write"), CWD).outcome, "deny");
+  assert.equal(decide(config, call("write_file"), CWD).outcome, "allow");
+  assert.equal(decide(config, call("read"), CWD).outcome, "allow");
+});
+
+test("tools: deny pattern beats an allow pattern for the same tool", () => {
+  const config: Config = {
+    ...base,
+    defaultMode: "ask",
+    tools: { deny: ["mcp__github__delete_*"], allow: ["mcp__github__*"] },
+  };
+  assert.equal(decide(config, call("mcp__github__delete_repo"), CWD).outcome, "deny");
+  assert.equal(decide(config, call("mcp__github__get_issue"), CWD).outcome, "allow");
+});
+
+// README: rules use Pi's tool names, where a hyphen in a server name is `_`.
+test("tools: a pattern is not rewritten to Pi's naming", () => {
+  const config: Config = { ...base, tools: { deny: ["mcp__dev-radius__*"] } };
+  assert.equal(decide(config, call("mcp__dev_radius__search"), CWD).outcome, "allow");
 });
 
 // --- paths dimension -----------------------------------------------------
