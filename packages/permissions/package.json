@@ -4,6 +4,9 @@
   "description": "Allow/ask/deny guardrail extension for the Pi coding agent. No third-party runtime dependencies.",
   "type": "module",
   "license": "MIT",
+  "scripts": {
+    "prepack": "node ../../scripts/changelog.mjs"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -24,6 +27,7 @@
     "extensions",
     "src",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "peerDependencies": {
