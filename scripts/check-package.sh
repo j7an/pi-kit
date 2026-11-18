@@ -28,6 +28,8 @@ const fixture = (name) => {
     });
     if (short !== "shared") {
       manifest(join(base, short), (pkg) => { pkg.dependencies["@pi-kit/shared"] = version; });
+      const own = JSON.parse(readFileSync(join(base, short, "package.json"), "utf8")).version;
+      writeFileSync(join(base, short, "CHANGELOG.md"), `# Changelog\n\n## [${own}] - 2026-01-01\n\n- entry\n`);
     }
   }
   return base;
@@ -106,5 +108,16 @@ validate(join(supplied, "rewind"), "packages/rewind", "typebox dependency is all
 const installs = readFileSync("scripts/assert-pack.sh", "utf8").split("\n").filter((line) => line.includes('npm install') && line.includes('"$@"'));
 assert.equal(installs.length, 1, "assert-pack.sh has one tarball install");
 assert.ok(installs[0].includes("--ignore-scripts"), installs[0]);
-console.log("Package fixture checks passed (5 positives, A–D and 10 safety cases)");
+const label = "CHANGELOG.md has an entry for the package version";
+const own = JSON.parse(readFileSync("packages/rewind/package.json", "utf8")).version;
+const noChangelog = fixture("changelog-missing");
+rmSync(join(noChangelog, "rewind/CHANGELOG.md"));
+validate(join(noChangelog, "rewind"), "packages/rewind", label);
+const otherVersion = fixture("changelog-version");
+writeFileSync(join(otherVersion, "rewind/CHANGELOG.md"), `## [9${own}]\n\n- entry\n`);
+validate(join(otherVersion, "rewind"), "packages/rewind", label);
+const emptyEntry = fixture("changelog-empty");
+writeFileSync(join(emptyEntry, "rewind/CHANGELOG.md"), `## [${own}]\n\n## [0.0.0]\n\n- older\n`);
+validate(join(emptyEntry, "rewind"), "packages/rewind", label);
+console.log("Package fixture checks passed (5 positives, A–D, 10 safety and 3 changelog cases)");
 NODE
