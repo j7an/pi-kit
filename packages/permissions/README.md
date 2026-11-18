@@ -158,7 +158,9 @@ These rows are executed by `test/decide.test.ts`.
 ### Session approvals
 
 *Allow for this session* remembers the exact request (tool, command, paths as
-written). For `bash` and `powershell`, *Allow commands starting with "…"*
+written). For a tool with no command or path, such as an MCP tool, that is the
+tool name alone, so the approval covers every later call to that tool, whatever
+its arguments. For `bash` and `powershell`, *Allow commands starting with "…"*
 remembers a prefix instead: the command name plus a subcommand-like second
 word, so `git push origin main` offers `git push`. A prefix covers that prefix
 followed by any arguments, but only when the command contains none of
@@ -244,7 +246,7 @@ enforcement, run Pi in a container or an OS sandbox.
   bodies, which are scanned like commands and can over-match; symlinks.
 - **MCP resources:** Pi's resource tools `read_mcp_resource`,
   `list_mcp_resources` and `list_mcp_resource_templates` reach every server and
-  are not covered by a `mcp__<server>__*` rule; deny them by exact name to block
+  are not covered by `mcp__*` or a `mcp__<server>__*` rule; deny them by exact name to block
   resources from all servers.
 - **RPC clients** receive `ask` as an extension UI request and must answer it;
   an unanswered request leaves the tool call waiting (cancel = deny).
