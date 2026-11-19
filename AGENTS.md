@@ -76,6 +76,9 @@ Releases are per package. A new `packages/<name>/` also needs:
 - a `publish-<name>.yml` caller modelled on `publish-permissions.yml`, with
   the same `paths` as its tag-release caller; without it, the release notes
   list every monorepo PR
+- for an extension, a `prepack` script running `node ../../scripts/changelog.mjs`
+  and `CHANGELOG.md` in `files`; the script builds the changelog Pi shows after
+  an update from the package's tags and the `paths` of its `publish-<name>.yml`
 - its tag-release workflow in the re-release list in `publish-shared.yml`
   when it depends on shared
 - before bootstrap, the owner must allow its `<name>/v*` tags in the `npm`

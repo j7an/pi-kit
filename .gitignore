@@ -147,3 +147,6 @@ docs/superpowers/
 
 # Worktrees live only here, so one entry covers every branch
 .worktrees/
+
+# Generated at pack time by scripts/changelog.mjs
+packages/*/CHANGELOG.md

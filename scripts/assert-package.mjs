@@ -182,6 +182,21 @@ if (isLibrary) {
     check(`pi.extensions entry exists: ${entry}`, safePath(entry) && existsSync(join(root, entry)));
   }
   check("file present: extensions/index.ts", existsSync(join(root, "extensions/index.ts")));
+  // Pi shows nothing, and reports nothing, when the installed version has no changelog entry.
+  // Read the file as Pi does: a "## " line starts an entry or ends the one before it.
+  const changelog = join(root, "CHANGELOG.md");
+  const [, ...sections] = existsSync(changelog)
+    ? `\n${readFileSync(changelog, "utf8")}`.split("\n## ")
+    : [];
+  const own = String(pkg.version).match(/^\d+\.\d+\.\d+/)?.[0];
+  check(
+    "CHANGELOG.md has an entry for the package version",
+    sections.some((section) => {
+      const [heading, ...body] = section.split("\n");
+      const found = heading.match(/^\s*\[?(\d+\.\d+\.\d+)\]?/)?.[1];
+      return found !== undefined && found === own && body.join("").trim() !== "";
+    }),
+  );
 }
 for (const file of ["README.md", "LICENSE"]) {
   check(`file present: ${file}`, existsSync(join(root, file)));
