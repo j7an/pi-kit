@@ -1,6 +1,6 @@
 {
   "name": "@pi-kit/shared",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Code shared by pi-kit's Pi extensions. Not an extension; installed with them. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
