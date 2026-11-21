@@ -5,9 +5,13 @@ Rewind code and conversation to an earlier prompt in the
 built-in `write` and `edit` tools and restores them when you revisit a point
 in the session. No configuration and no third-party runtime dependencies.
 
+## Install
+
 ```sh
 pi install npm:@pi-kit/rewind
 ```
+
+## Usage
 
 Use `/rewind` to choose a user prompt on the current branch, newest first.
 It opens Pi's tree navigation and puts the selected prompt back in the editor.
@@ -71,6 +75,26 @@ Reusing a blob refreshes its timestamp. On session start a best-effort sweep
 removes blobs older than 30 days. Restoring a swept blob skips the file and
 reports `snapshot missing`. There is no retention setting.
 
-Node 22.19 or newer. Pi supplies the coding-agent and terminal-UI peers.
+## Supported versions
+
+Node 22.19 or newer. Pi: no minimum version; recent Pi releases are tested
+weekly — [latest results](https://github.com/j7an/pi-kit/actions/workflows/ci.yml?query=event%3Aschedule).
+
+## Dependencies
+
+`@pi-kit/shared`, pinned to an exact version, and nothing third-party.
+`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are optional
+peers that Pi supplies.
+
+## More from pi-kit
+
+Part of [pi-kit](https://github.com/j7an/pi-kit), extensions that bring the
+most useful features shared by Claude Code and Codex to the Pi coding agent.
+
+| Package | What it does |
+|---|---|
+| [`@pi-kit/permissions`](https://www.npmjs.com/package/@pi-kit/permissions) | Allow / ask / deny guardrail over Pi's built-in and MCP tools |
+
+## Licence
 
 MIT
