@@ -84,7 +84,9 @@ Releases are per package. A new `packages/<name>/` also needs:
 - before bootstrap, the owner must allow its `<name>/v*` tags in the `npm`
   environment and cover its namespace with the existing release tag protections,
   preserving App bypass and required environment approvals
-- a `knip.json` workspace entry and a row in the root README package table
+- a `knip.json` workspace entry and a row in the root README package table;
+  for an extension, also a row with the same text, linked to its npm page, in
+  the `More from pi-kit` table of every other package README
 - a `scripts/pack-probe-<name>.sh` probe, sourced by `scripts/assert-pack.sh`
   to verify the installed package's behaviour with real Pi
 - runtime code under `src/` or `extensions/`, the only paths the `ci.yml`

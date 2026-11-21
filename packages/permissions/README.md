@@ -258,8 +258,18 @@ weekly — [latest results](https://github.com/j7an/pi-kit/actions/workflows/ci.
 
 ## Dependencies
 
-None at runtime. `@earendil-works/pi-coding-agent` and `typebox` are optional
-peers that Pi supplies; scanner alerts on them belong to the Pi host.
+`@pi-kit/shared`, pinned to an exact version, and nothing third-party.
+`@earendil-works/pi-coding-agent` and `typebox` are optional peers that Pi
+supplies; scanner alerts on them belong to the Pi host.
+
+## More from pi-kit
+
+Part of [pi-kit](https://github.com/j7an/pi-kit), extensions that bring the
+most useful features shared by Claude Code and Codex to the Pi coding agent.
+
+| Package | What it does |
+|---|---|
+| [`@pi-kit/rewind`](https://www.npmjs.com/package/@pi-kit/rewind) | Rewind code and conversation to an earlier prompt |
 
 ## Licence
 
