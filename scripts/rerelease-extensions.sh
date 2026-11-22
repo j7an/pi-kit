@@ -21,6 +21,12 @@ for wf in "$@"; do
       sleep 3
     fi
   done
+  # A run just dispatched can 404 for a moment; wait until it is readable.
+  attempt=0
+  while [ -n "$id" ] && [ "$attempt" -lt 10 ] && ! gh run view "$id" --json status >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 10 ] && sleep 3
+  done
   # Release approval may take hours; avoid consuming the repository API quota.
   if [ -z "$id" ] || ! gh run watch "$id" --exit-status --interval 60; then
     failed="$failed $wf"
