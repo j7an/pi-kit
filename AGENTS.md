@@ -101,4 +101,10 @@ shared with the repo refuses otherwise.
 The `ci.yml` artifact job validates every package through
 `scripts/assert-pack.sh`, which runs the shared `scripts/assert-package.mjs`
 shape checks and the package's probe. Reuse these parameterised scripts.
-The first npm publish is manual; configure npm trusted publishing afterwards.
+The first npm publish is manual. In the same sitting, add the npm trusted
+publisher (`publish-<name>.yml`, environment `npm`), merge a commit touching
+`packages/<name>`, and release it through CI. Tag-release refuses a release
+with no new commits, even with `bump: patch`. npm expires a trusted
+publisher that hasn't published within 2 days. After that, every CI publish
+fails with `ENEEDAUTH` until you delete the entry and add it again, and that
+includes the re-release a shared release triggers.
