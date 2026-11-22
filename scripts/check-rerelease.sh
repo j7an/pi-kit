@@ -38,7 +38,11 @@ case "$1 $2" in
       *) exit 1 ;;
     esac | jq -r "$query"
     ;;
-  'run watch') [ "$CASE" != both ] && [ "$CASE:$3" != watch:1 ] ;;
+  'run view')
+    # A readable run prints its status, as gh does; the script must not pass that on.
+    [ "$CASE" != gone ] && { [ "$CASE" != lag ] || [ "$(grep -c '^run view ' "$LOG")" -gt 2 ]; } && printf '%s\\n' '{"status":"completed"}'
+    ;;
+  'run watch') [ "$CASE" != both ] && [ "$CASE" != gone ] && [ "$CASE:$3" != watch:1 ] ;;
   *) exit 1 ;;
 esac
 `);
@@ -58,18 +62,29 @@ const run = (scenario, failure, both = false) => {
 };
 const first = "workflow run tag-release.yml --ref main -f bump=auto";
 const second = "workflow run tag-release-rewind.yml --ref main -f bump=auto";
-assert.deepEqual(run("watch", true), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
-assert.deepEqual(run("both", true, true), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
-assert.deepEqual(run("success", false), [first, "run watch 1 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
+const view = (id) => `run view ${id} --json status`;
+const watch = (id) => `run watch ${id} --exit-status --interval 60`;
+const tail = [second, view(2), watch(2)];
+assert.deepEqual(run("watch", true), [first, view(1), watch(1), ...tail]);
+assert.deepEqual(run("both", true, true), [first, view(1), watch(1), ...tail]);
+assert.deepEqual(run("success", false), [first, view(1), watch(1), ...tail]);
 const fallback = run("fallback", false);
-assert.deepEqual(fallback, [first, `run list --workflow tag-release.yml --event workflow_dispatch --branch main --json databaseId,createdAt --jq map(select(.createdAt >= "2026-10-05T12:00:00Z")) | sort_by(.createdAt) | last | .databaseId // empty`, "run watch 7 --exit-status --interval 60", second, "run watch 2 --exit-status --interval 60"]);
-assert.deepEqual(run("dispatch", true), [first, second, "run watch 2 --exit-status --interval 60"]);
+assert.deepEqual(fallback, [first, `run list --workflow tag-release.yml --event workflow_dispatch --branch main --json databaseId,createdAt --jq map(select(.createdAt >= "2026-10-05T12:00:00Z")) | sort_by(.createdAt) | last | .databaseId // empty`, view(7), watch(7), ...tail]);
+assert.deepEqual(run("dispatch", true), [first, ...tail]);
+assert.deepEqual(run("lag", false), [first, view(1), "sleep 3", view(1), "sleep 3", view(1), watch(1), ...tail]);
+const gone = run("gone", true, true);
+for (const id of [1, 2]) {
+  assert.equal(gone.filter((line) => line === view(id)).length, 10);
+  assert.equal(gone.filter((line) => line === watch(id)).length, 1);
+}
+assert.equal(gone.filter((line) => line === "sleep 3").length, 18);
 for (const scenario of ["empty", "malformed", "list"]) {
   const log = run(scenario, true);
   assert.equal(log.filter((line) => line.startsWith("run list ")).length, 10);
   assert.equal(log.filter((line) => line === "sleep 3").length, 9);
-  assert.deepEqual(log.slice(-2), [second, "run watch 2 --exit-status --interval 60"]);
-  assert.ok(!log.some((line) => line.startsWith("run watch ") && line !== "run watch 2 --exit-status --interval 60"));
+  assert.deepEqual(log.slice(-3), tail);
+  assert.ok(!log.some((line) => line.startsWith("run watch ") && line !== watch(2)));
+  assert.ok(!log.some((line) => line.startsWith("run view ") && line !== view(2)));
 }
-console.log("Re-release checks passed (watch failures, success, fallback selection, dispatch failure, empty/malformed/failed listing)");
+console.log("Re-release checks passed (watch failures, success, fallback selection, dispatch failure, empty/malformed/failed listing, unreadable run)");
 NODE
