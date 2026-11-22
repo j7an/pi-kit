@@ -39,7 +39,8 @@ case "$1 $2" in
     esac | jq -r "$query"
     ;;
   'run view')
-    [ "$CASE" != gone ] && { [ "$CASE" != lag ] || [ "$(grep -c '^run view ' "$LOG")" -gt 2 ]; }
+    # A readable run prints its status, as gh does; the script must not pass that on.
+    [ "$CASE" != gone ] && { [ "$CASE" != lag ] || [ "$(grep -c '^run view ' "$LOG")" -gt 2 ]; } && printf '%s\\n' '{"status":"completed"}'
     ;;
   'run watch') [ "$CASE" != both ] && [ "$CASE" != gone ] && [ "$CASE:$3" != watch:1 ] ;;
   *) exit 1 ;;
