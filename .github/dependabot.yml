@@ -23,9 +23,12 @@ updates:
   # in their own PR so a breaking Pi release cannot hold back the toolchain group;
   # the weekly pi-window CI job
   # covers the older Pi minors this pin moves past.
+  # Rebasing stays on: both groups edit adjacent devDependencies lines, so
+  # whichever merges second conflicts and must be rebased. A rebase that picks
+  # up a version younger than minimum_release_age_days is held by the advisory
+  # release-age check in dependency-safety.yml, which suppresses auto-merge.
   - package-ecosystem: "npm"
     directory: "/"
-    rebase-strategy: "disabled"
     cooldown:
       default-days: 7
     schedule:
